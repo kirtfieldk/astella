@@ -1,12 +1,14 @@
 package structures
 
 type Message struct {
-	UUID     string
-	Content  string
-	Created  string
-	UserId   string
-	ParentId string
-	EventId  string
-	Likes    int16
-	Pinned   bool
+	UUID      string  `json:"uuid"`
+	Content   string  `json:"content"`
+	Created   string  `json:"created"`
+	UserId    string  `json:"user_id"`
+	ParentId  string  `json:"parent_id"`
+	EventId   string  `json:"event_id"`
+	Upvotes   int16   `json:"up_votes"`
+	Pinned    bool    `json:"pinned"`
+	Latitude  float32 `json:"latitude"`
+	Longitude float32 `json:"longitude"`
 }

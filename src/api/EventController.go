@@ -6,7 +6,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/kirtfieldk/astella/src/constants"
-	"github.com/kirtfieldk/astella/src/services"
+	eventservices "github.com/kirtfieldk/astella/src/services/eventServices"
 )
 
 type codePayload struct {
@@ -16,9 +16,9 @@ type cityPayload struct {
 	City string `json:"city"`
 }
 
-func GetEvent(c *gin.Context) {
+func (h *BaseHandler) GetEvent(c *gin.Context) {
 	id := c.Param(constants.ID)
-	event, err := services.GetEvent(id)
+	event, err := eventservices.GetEvent(id, h.DB)
 	if err != nil {
 		c.IndentedJSON(http.StatusNotFound, gin.H{constants.MESSAGE: err})
 		return
@@ -27,9 +27,9 @@ func GetEvent(c *gin.Context) {
 
 }
 
-func GetEventByCity(c *gin.Context) {
+func (h *BaseHandler) GetEventByCity(c *gin.Context) {
 	requestBody := readCityFromPayload(c)
-	events, err := services.GetEventsByCity(requestBody.City)
+	events, err := eventservices.GetEventsByCity(requestBody.City, h.DB)
 	if err != nil {
 		c.IndentedJSON(http.StatusNotFound, gin.H{constants.MESSAGE: err})
 		return
@@ -37,7 +37,7 @@ func GetEventByCity(c *gin.Context) {
 	c.IndentedJSON(http.StatusOK, events)
 }
 
-func AddUserToEvent(c *gin.Context) {
+func (h *BaseHandler) AddUserToEvent(c *gin.Context) {
 	requestBody := readCodeFromPayload(c)
 	eventId := c.Param(constants.EVENT_ID)
 	userId := c.Param(constants.USER_ID)
@@ -45,7 +45,7 @@ func AddUserToEvent(c *gin.Context) {
 		c.IndentedJSON(http.StatusNotFound, gin.H{constants.MESSAGE: constants.CODE_NOT_FOUND})
 		return
 	}
-	success, err := services.AddUserToEvent(requestBody.Code, userId, eventId)
+	success, err := eventservices.AddUserToEvent(requestBody.Code, userId, eventId, h.DB)
 	if err != nil {
 		c.IndentedJSON(http.StatusNotFound, gin.H{constants.MESSAGE: constants.NO_EVENT_FOUND})
 		return

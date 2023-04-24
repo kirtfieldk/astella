@@ -12,29 +12,28 @@ CREATE TABLE IF NOT EXISTS locationInfo(
     bottom_left_lon float,
     bottom_right_lat float,
     bottom_right_lon float,
-    latitude float, 
-    longitude float,
     city varchar(100)
 );
 
  CREATE TABLE IF NOT EXISTS events(
     id uuid PRIMARY KEY DEFAULT uuid_generate_v4 (),
     event_name varchar(80) NOT NULL,
-    created TIMESTAMP,
+    created TIMESTAMP NOT NULL,
     description varchar(400),
     public BOOLEAN DEFAULT FALSE,
     code varchar(20),
-    location_id uuid, 
+    location_id uuid,
     CONSTRAINT fk_location
       FOREIGN KEY(location_id) 
 	  REFERENCES locationInfo(id)
+    
 );
 
 
 
 CREATE TABLE IF NOT EXISTS users (
     id uuid PRIMARY KEY DEFAULT uuid_generate_v4 (),
-    created TIMESTAMP, 
+    created TIMESTAMP NOT NULL, 
     username varchar(80) NOT NULL,
     ig varchar(120),
     twitter varchar(120),
@@ -45,6 +44,7 @@ CREATE TABLE IF NOT EXISTS admins(
     id uuid PRIMARY KEY DEFAULT uuid_generate_v4 (),
     user_id UUID NOT NULL,
     event_id UUID NOT NULL,
+    created TIMESTAMP NOT NULL,
     CONSTRAINT fk_user
       FOREIGN KEY(user_id) 
 	  REFERENCES users(id),
@@ -58,6 +58,7 @@ CREATE TABLE IF NOT EXISTS members (
     id uuid PRIMARY KEY DEFAULT uuid_generate_v4 (),
     user_id UUID NOT NULL,
     event_id UUID NOT NULL,
+    created TIMESTAMP NOT NULL,
     CONSTRAINT fk_user
       FOREIGN KEY(user_id) 
 	  REFERENCES users(id),
@@ -70,14 +71,13 @@ CREATE TABLE IF NOT EXISTS messages (
     id uuid PRIMARY KEY DEFAULT uuid_generate_v4 (),
     content text NOT NULL,
     user_id UUID NOT NULL,
-    created TIMESTAMP,
+    created TIMESTAMP NOT NULL,
     event_id UUID NOT NULL,
-    parent_message UUID,
+    parent_id UUID,
     upvotes integer DEFAULT 0,
-    location_id uuid, 
-    CONSTRAINT fk_location
-      FOREIGN KEY(location_id) 
-	  REFERENCES locationInfo(id),
+    pinned BOOLEAN DEFAULT FALSE,
+    latitude float,
+    longitude float,
     CONSTRAINT fk_user
       FOREIGN KEY(user_id) 
 	  REFERENCES users(id),

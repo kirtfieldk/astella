@@ -20,9 +20,7 @@ const (
 	dbname   = "postgres"
 )
 
-var DbConnection *sql.DB
-
-func CreateConnection() {
+func CreateConnection() *sql.DB {
 	psqlInfo := fmt.Sprintf("host=%s port=%d user=%s "+
 		"password=%s dbname=%s sslmode=disable",
 		host, port, user, password, dbname)
@@ -38,11 +36,7 @@ func CreateConnection() {
 	}
 
 	fmt.Println("Successfully connected!")
-	DbConnection = db
-}
-
-func GetConnection() *sql.DB {
-	return DbConnection
+	return db
 }
 
 func DbClosedError() error {

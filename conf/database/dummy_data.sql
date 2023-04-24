@@ -6,11 +6,9 @@ INSERT INTO locationInfo (top_left_lat,
     bottom_left_lon,
     bottom_right_lat,
     bottom_right_lon,
-    latitude, 
-    longitude,
     city) VALUES 
-    (40.7128,	-74.0060,	40.7128,	-73.9970,	40.7038,	-74.0060,	40.7038,	-73.9970,	40.7128,	-74.0060,	'New York City'),
-    (34.0522,	-118.2437,	34.0522,	-118.2347,	34.0432,	-118.2437,	34.0432,	-118.2347,	34.0522,	-118.2437,	'Los Angeles');
+    (40.7128,	-74.0060,	40.7128,	-73.9970,	40.7038,	-74.0060,	40.7038,	-73.9970,	'New York City'),
+    (34.0522,	-118.2437,	34.0522,	-118.2347,	34.0432,	-118.2437,	34.0432,	-118.2347,	'Los Angeles');
 
 
 INSERT INTO events (event_name, created, description, public, code, location_id)
@@ -25,16 +23,16 @@ VALUES ('user1', NOW(), 'user1_ig', 'user1_twitter', 'user1_tiktok'),
 ('user3', NOW(), 'user3_ig', 'user3_twitter', 'user3_tiktok');
 
 -- Dummy data for admins table
-INSERT INTO admins (user_id, event_id)
-VALUES ((SELECT id FROM users WHERE username = 'user1'), (SELECT id FROM events WHERE event_name = 'Event 1')),
-((SELECT id FROM users WHERE username = 'user2'), (SELECT id FROM events WHERE event_name = 'Event 2')),
-((SELECT id FROM users WHERE username = 'user3'), (SELECT id FROM events WHERE event_name = 'Event 3'));
+INSERT INTO admins (user_id, event_id, created)
+VALUES ((SELECT id FROM users WHERE username = 'user1'), (SELECT id FROM events WHERE event_name = 'Event 1'), NOW()),
+((SELECT id FROM users WHERE username = 'user2'), (SELECT id FROM events WHERE event_name = 'Event 2'),NOW()),
+((SELECT id FROM users WHERE username = 'user3'), (SELECT id FROM events WHERE event_name = 'Event 3'),NOW());
 
 -- Dummy data for members table
-INSERT INTO members (user_id, event_id)
-VALUES ((SELECT id FROM users WHERE username = 'user1'), (SELECT id FROM events WHERE event_name = 'Event 1')),
-((SELECT id FROM users WHERE username = 'user2'), (SELECT id FROM events WHERE event_name = 'Event 2')),
-((SELECT id FROM users WHERE username = 'user3'), (SELECT id FROM events WHERE event_name = 'Event 3'));
+INSERT INTO members (user_id, event_id, created)
+VALUES ((SELECT id FROM users WHERE username = 'user1'), (SELECT id FROM events WHERE event_name = 'Event 1'), NOW()),
+((SELECT id FROM users WHERE username = 'user2'), (SELECT id FROM events WHERE event_name = 'Event 2'),NOW()),
+((SELECT id FROM users WHERE username = 'user3'), (SELECT id FROM events WHERE event_name = 'Event 3'), NOW());
 
 -- Dummy data for messages table
 INSERT INTO messages (content, user_id, created, event_id, parent_message, upvotes, location_id)
