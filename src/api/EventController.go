@@ -7,10 +7,13 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/kirtfieldk/astella/src/constants"
 	eventservices "github.com/kirtfieldk/astella/src/services/eventServices"
+	"github.com/kirtfieldk/astella/src/structures"
 )
 
-type codePayload struct {
-	Code string `json:"code"`
+type codeWithLocationPayload struct {
+	Code      string  `json:"code"`
+	Latitude  float32 `json:"latitude"`
+	Longitude float32 `json:"longitude"`
 }
 type cityPayload struct {
 	City string `json:"city"`
@@ -38,16 +41,17 @@ func (h *BaseHandler) GetEventByCity(c *gin.Context) {
 }
 
 func (h *BaseHandler) AddUserToEvent(c *gin.Context) {
-	requestBody := readCodeFromPayload(c)
+	requestBody := readCodeAndLocationFromPayload(c)
 	eventId := c.Param(constants.EVENT_ID)
 	userId := c.Param(constants.USER_ID)
 	if err := c.BindJSON(&requestBody); err != nil {
 		c.IndentedJSON(http.StatusNotFound, gin.H{constants.MESSAGE: constants.CODE_NOT_FOUND})
 		return
 	}
-	success, err := eventservices.AddUserToEvent(requestBody.Code, userId, eventId, h.DB)
-	if err != nil {
-		c.IndentedJSON(http.StatusNotFound, gin.H{constants.MESSAGE: constants.NO_EVENT_FOUND})
+	point := structures.Point{Latitude: requestBody.Latitude, Longitude: requestBody.Longitude}
+	success, err := eventservices.AddUserToEvent(requestBody.Code, userId, eventId, point, h.DB)
+	if err != nil || !success {
+		c.IndentedJSON(http.StatusNotFound, gin.H{constants.MESSAGE: err.Error()})
 		return
 	}
 	c.IndentedJSON(http.StatusOK, gin.H{constants.MESSAGE: success})
@@ -58,9 +62,8 @@ func deleteEvent(c *gin.Context) {
 
 }
 
-func readCodeFromPayload(c *gin.Context) *codePayload {
-
-	var requestBody codePayload
+func readCodeAndLocationFromPayload(c *gin.Context) *codeWithLocationPayload {
+	var requestBody codeWithLocationPayload
 	if err := c.BindJSON(&requestBody); err != nil {
 		c.IndentedJSON(http.StatusNotFound, gin.H{constants.MESSAGE: constants.CODE_NOT_FOUND})
 		return nil

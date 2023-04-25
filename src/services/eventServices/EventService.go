@@ -4,11 +4,13 @@ import (
 	"database/sql"
 	"fmt"
 	"log"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/kirtfieldk/astella/src/constants/queries"
 	locationservice "github.com/kirtfieldk/astella/src/services/locationService"
 	"github.com/kirtfieldk/astella/src/structures"
+	uuidtransform "github.com/kirtfieldk/astella/src/util/uuidTransform"
 )
 
 // We can easily create events > FIx.
@@ -63,18 +65,31 @@ func GetEventsByCity(city string, conn *sql.DB) ([]structures.Event, error) {
 	return events, nil
 }
 
-func AddUserToEvent(code string, userId string, eventId string, conn *sql.DB) (bool, error) {
+func AddUserToEvent(code string, userId string, eventId string, cords structures.Point, conn *sql.DB) (bool, error) {
+	eId, err := uuidtransform.StringToUuidTransform(eventId)
+	if err != nil {
+		return false, fmt.Errorf("Failed to be UUID for Event: " + eventId)
+	}
+	uId, err := uuidtransform.StringToUuidTransform(userId)
+	if err != nil {
+		return false, fmt.Errorf("Failed to be UUID for User: " + userId)
+	}
 	row := conn.QueryRow("Select * from Event where UUID = $1", eventId)
+
 	event, err := mapSingleRowQuery(row)
 	if err != nil {
 		return false, getErrorMessage(err, eventId)
 	}
-	if event.Public {
-		// adduser
-	} else if event.Code == code {
-
+	if checkPointInEvent(cords.Latitude, cords.Longitude,
+		structures.Point{Latitude: event.Location.TopLeftLat, Longitude: event.Location.TopLeftLon},
+		structures.Point{Latitude: event.Location.TopRightLat, Longitude: event.Location.TopRightLon},
+		structures.Point{Latitude: event.Location.BottomLeftLat, Longitude: event.Location.BottomLeftLon},
+		structures.Point{Latitude: event.Location.BottomRightLat, Longitude: event.Location.BottomRightLon}) {
+		if event.Public || (!event.Public && event.Code == code) {
+			return addUserToEvent(uId, eId, conn)
+		}
 	}
-	return false, nil
+	return false, fmt.Errorf("Cannot add user to event")
 
 }
 
@@ -131,4 +146,12 @@ func getErrorMessage(err error, id string) error {
 		return fmt.Errorf("EventById %s: no such Event %v", id, err)
 	}
 	return fmt.Errorf("EventById %s: %v", id, err)
+}
+
+func addUserToEvent(userId uuid.UUID, eventId uuid.UUID, conn *sql.DB) (bool, error) {
+	_, err := conn.Exec("INSERT INTO members (user_id, event_id, created) values ($1, $2, $3)", userId, eventId, time.Now())
+	if err != nil {
+		return false, err
+	}
+	return true, nil
 }

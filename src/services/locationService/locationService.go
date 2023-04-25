@@ -24,10 +24,10 @@ func GetEventLocation(id uuid.UUID, conn *sql.DB) structures.LocationInfo {
 }
 
 func CheckPointInArea(lat float32, long float32, topLeft structures.Point, topRight structures.Point, bottomLeft structures.Point, bottomRight structures.Point) bool {
-	var minX = math.Min(float64(topLeft.X), float64(topRight.X))
-	var maxX = math.Max(float64(topLeft.X), float64(topRight.X))
-	var minY = math.Min(float64(bottomLeft.Y), float64(topLeft.Y))
-	var maxY = math.Max(float64(bottomLeft.Y), float64(topLeft.Y))
+	var minX = math.Min(float64(topLeft.Latitude), float64(topRight.Latitude))
+	var maxX = math.Max(float64(topLeft.Latitude), float64(topRight.Latitude))
+	var minY = math.Min(float64(bottomLeft.Longitude), float64(topLeft.Longitude))
+	var maxY = math.Max(float64(bottomLeft.Longitude), float64(topLeft.Longitude))
 	var updatedLat = float64(lat)
 	var updatedLon = float64(long)
 
@@ -36,5 +36,5 @@ func CheckPointInArea(lat float32, long float32, topLeft structures.Point, topRi
 }
 
 func CreatePoint(lat float32, long float32) structures.Point {
-	return structures.Point{X: lat, Y: long}
+	return structures.Point{Latitude: lat, Longitude: long}
 }
