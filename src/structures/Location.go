@@ -10,7 +10,5 @@ type LocationInfo struct {
 	BottomLeftLon  float32 `json:"bottom_left_lon"`
 	BottomRightLat float32 `json:"bottom_right_lat"`
 	BottomRightLon float32 `json:"bottom_right_lon"`
-	Latitude       float32 `json:"latitude"`
-	Longitude      float32 `json:"longitude"`
 	City           string  `json:"city"`
 }

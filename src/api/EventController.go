@@ -23,7 +23,7 @@ func (h *BaseHandler) GetEvent(c *gin.Context) {
 	id := c.Param(constants.ID)
 	event, err := eventservices.GetEvent(id, h.DB)
 	if err != nil {
-		c.IndentedJSON(http.StatusNotFound, gin.H{constants.MESSAGE: err})
+		c.IndentedJSON(http.StatusNotFound, gin.H{constants.MESSAGE: err.Error()})
 		return
 	}
 	c.IndentedJSON(http.StatusOK, event)
@@ -40,8 +40,23 @@ func (h *BaseHandler) GetEventByCity(c *gin.Context) {
 	c.IndentedJSON(http.StatusOK, events)
 }
 
+func (h *BaseHandler) CreateEvent(c *gin.Context) {
+	var event structures.Event
+	if err := c.BindJSON(&event); err != nil {
+		log.Println(err)
+		c.IndentedJSON(http.StatusNotFound, gin.H{constants.MESSAGE: "Missing fields for event"})
+		return
+	}
+	success, err := eventservices.CreateEvent(event, h.DB)
+	if err != nil {
+		c.IndentedJSON(http.StatusBadRequest, gin.H{constants.MESSAGE: err.Error()})
+		return
+	}
+	c.IndentedJSON(http.StatusAccepted, gin.H{constants.MESSAGE: success})
+}
+
 func (h *BaseHandler) AddUserToEvent(c *gin.Context) {
-	requestBody := readCodeAndLocationFromPayload(c)
+	var requestBody codeWithLocationPayload
 	eventId := c.Param(constants.EVENT_ID)
 	userId := c.Param(constants.USER_ID)
 	if err := c.BindJSON(&requestBody); err != nil {
@@ -60,15 +75,6 @@ func (h *BaseHandler) AddUserToEvent(c *gin.Context) {
 
 func deleteEvent(c *gin.Context) {
 
-}
-
-func readCodeAndLocationFromPayload(c *gin.Context) *codeWithLocationPayload {
-	var requestBody codeWithLocationPayload
-	if err := c.BindJSON(&requestBody); err != nil {
-		c.IndentedJSON(http.StatusNotFound, gin.H{constants.MESSAGE: constants.CODE_NOT_FOUND})
-		return nil
-	}
-	return &requestBody
 }
 
 func readCityFromPayload(c *gin.Context) *cityPayload {

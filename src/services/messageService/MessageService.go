@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/kirtfieldk/astella/src/constants"
 	"github.com/kirtfieldk/astella/src/constants/queries"
 	locationservice "github.com/kirtfieldk/astella/src/services/locationService"
 	userservice "github.com/kirtfieldk/astella/src/services/userService"
@@ -25,6 +26,7 @@ func PostMessage(msg structures.Message, conn *sql.DB) (bool, error) {
 		return false, fmt.Errorf("Failed to be UUID for User: " + msg.UserId)
 	}
 	if isRequestInArea(eventId, msg.Latitude, msg.Longitude, conn) && isUserInEvent(userId, eventId, conn) {
+		log.Println("Here")
 		return insertMessageIntoDB(msg, conn), nil
 	}
 	return false, nil
@@ -47,7 +49,7 @@ func GetMessagesInEvent(eventId string, userId string, cords structures.Point, c
 	if isRequestInArea(eId, cords.Latitude, cords.Longitude, conn) && isUserInEvent(uId, eId, conn) {
 		return getMessages(eId, conn)
 	}
-	return nil, fmt.Errorf("User is not in Event")
+	return messages, fmt.Errorf("User is not in Event")
 
 }
 
@@ -107,7 +109,7 @@ func getErrorMessageForNoMessages(err error, id string) error {
 }
 
 func mapRowsToMessages(rows *sql.Rows) []structures.Message {
-	var messages []structures.Message
+	var messages []structures.Message = make([]structures.Message, 0)
 	for rows.Next() {
 		var msg structures.Message
 		if err := rows.Scan(&msg.UUID, &msg.Content, &msg.UserId, &msg.Created, &msg.EventId, &msg.ParentId, &msg.Upvotes,
@@ -121,7 +123,6 @@ func mapRowsToMessages(rows *sql.Rows) []structures.Message {
 }
 
 func isRequestInArea(id uuid.UUID, lat float32, long float32, conn *sql.DB) bool {
-	log.Println(id)
 	location := locationservice.GetEventLocation(id, conn)
 	topLeftPt := locationservice.CreatePoint(location.TopLeftLat, location.TopLeftLon)
 	topRightPt := locationservice.CreatePoint(location.TopRightLat, location.TopRightLon)
@@ -132,6 +133,7 @@ func isRequestInArea(id uuid.UUID, lat float32, long float32, conn *sql.DB) bool
 
 func isUserInEvent(userId uuid.UUID, eventId uuid.UUID, conn *sql.DB) bool {
 	stmt, err := conn.Prepare(queries.FIND_USER_IN_EVENT)
+	defer stmt.Close()
 	if err != nil {
 		log.Println("Touble preparing statement for isUserInEvent")
 	}
@@ -172,9 +174,52 @@ func getMessages(eventId uuid.UUID, conn *sql.DB) ([]structures.Message, error) 
 }
 
 func upVoteMessage(userId uuid.UUID, messageId uuid.UUID, conn *sql.DB) (bool, error) {
-	_, err := conn.Exec("INSERT INTO likes (user_id, message_id) VALUES ($1,$2)", userId, messageId)
+	tx, err := conn.Begin()
+	stmt, err := tx.Prepare(queries.INSERT_UPVOTE)
+	defer stmt.Close()
 	if err != nil {
-		return false, err
+		log.Println(err)
+		return false, fmt.Errorf(`Issue Preparing Upvote Insert Stmt`)
 	}
+	if _, err = stmt.Exec(&userId, &messageId, time.Now().UTC()); err != nil {
+		log.Println(err)
+		return false, fmt.Errorf(constants.UNABLE_TO_UPVOTE_FOR_USER, userId)
+	}
+	updateMsgStmt, err := tx.Prepare(queries.UPDATE_MESSAGE_LIKE_INC)
+	defer updateMsgStmt.Close()
+	if err != nil {
+		return false, fmt.Errorf(`Issue Preparing Upvote Stmt`)
+	}
+	if _, err = updateMsgStmt.Exec(&messageId); err != nil {
+		log.Println(err)
+		return false, fmt.Errorf(constants.UNABLE_TO_UPVOTE_FOR_USER, userId)
+	}
+	tx.Commit()
+
+	return true, nil
+}
+
+func downVoteMessage(userId uuid.UUID, messageId uuid.UUID, conn *sql.DB) (bool, error) {
+	tx, err := conn.Begin()
+	stmt, err := tx.Prepare(queries.DELETE_UPVOTE)
+	defer stmt.Close()
+	if err != nil {
+		return false, fmt.Errorf(`Issue Preparing Upvote Delete Stmt`)
+	}
+	if _, err = stmt.Exec(&userId, &messageId); err != nil {
+		log.Println(err)
+		return false, fmt.Errorf(constants.UNABLE_TO_UPVOTE_FOR_USER, userId)
+	}
+	updateMsgStmt, err := tx.Prepare(queries.UPDATE_MESSAGE_LIKE_DEC)
+	defer updateMsgStmt.Close()
+	if err != nil {
+		return false, fmt.Errorf(`Issue Preparing DownVote Stmt`)
+	}
+	if _, err = updateMsgStmt.Exec(&messageId); err != nil {
+		log.Println(err)
+		return false, fmt.Errorf(constants.UNABLE_TO_UPVOTE_FOR_USER, userId)
+	}
+	tx.Commit()
+
 	return true, nil
 }

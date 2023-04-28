@@ -21,6 +21,8 @@ func BuildApi() {
 	router.Use(requestIdMiddleware())
 
 	router.GET(routes.GET_EVENT_BY_ID, baseHandler.GetEvent)
+	router.GET(routes.GET_EVENTS_MEMBER_OF, baseHandler.GeteventsMemberOf)
+	router.POST(routes.CREATE_EVENT, baseHandler.CreateEvent)
 	router.POST(routes.GET_EVENT_BY_CITY, baseHandler.GetEventByCity)
 	router.POST(routes.ADD_USER_TO_EVENT, baseHandler.AddUserToEvent)
 	router.POST(routes.POST_MESSAGE_TO_EVENT, baseHandler.PostMessageToEvent)

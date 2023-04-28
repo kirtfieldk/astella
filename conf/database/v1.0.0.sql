@@ -22,6 +22,9 @@ CREATE TABLE IF NOT EXISTS locationInfo(
     description varchar(400),
     public BOOLEAN DEFAULT FALSE,
     code varchar(20),
+    expired BOOLEAN DEFAULT FALSE,
+    end_time TIMESTAMP NOT NULL, 
+    duration float,
     location_id uuid,
     CONSTRAINT fk_location
       FOREIGN KEY(location_id) 
@@ -35,6 +38,7 @@ CREATE TABLE IF NOT EXISTS users (
     id uuid PRIMARY KEY DEFAULT uuid_generate_v4 (),
     created TIMESTAMP NOT NULL, 
     username varchar(80) NOT NULL,
+    description varchar(300),
     ig varchar(120),
     twitter varchar(120),
     tiktok varchar(120),
@@ -97,6 +101,7 @@ CREATE TABLE IF NOT EXISTS likes (
     id uuid PRIMARY KEY DEFAULT uuid_generate_v4 (), 
     user_id UUID NOT NULL,
     message_id UUID NOT NULL,
+    created TIMESTAMP,
     CONSTRAINT fk_user
       FOREIGN KEY(user_id) 
 	  REFERENCES users(id),
@@ -105,3 +110,10 @@ CREATE TABLE IF NOT EXISTS likes (
         REFERENCES messages(id),
     UNIQUE (user_id, message_id)
 );
+
+
+-- Dummy data for users table
+INSERT INTO users (username, created, ig, twitter, tiktok)
+VALUES ('user1', NOW(), 'user1_ig', 'user1_twitter', 'user1_tiktok'),
+('user2', NOW(), 'user2_ig', 'user2_twitter', 'user2_tiktok'),
+('user3', NOW(), 'user3_ig', 'user3_twitter', 'user3_tiktok');

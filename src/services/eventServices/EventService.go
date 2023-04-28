@@ -6,6 +6,8 @@ import (
 	"log"
 	"time"
 
+	b64 "encoding/base64"
+
 	"github.com/google/uuid"
 	"github.com/kirtfieldk/astella/src/constants/queries"
 	locationservice "github.com/kirtfieldk/astella/src/services/locationService"
@@ -15,13 +17,22 @@ import (
 
 // We can easily create events > FIx.
 func CreateEvent(eventInfo structures.Event, conn *sql.DB) (bool, error) {
-	_, err := conn.Exec(`Insert INTO events (event_name, created, description, top_left, top_right, bottom_left, bottom_right,
-    	public, code) VALUES (?,?,?, point(?, ?), point(?, ?), point(?, ?),point(?, ?) ,?, ?)`,
-		&eventInfo.Name, &eventInfo.Created, &eventInfo.Description, &eventInfo.Public, &eventInfo.Code)
+	tx, err := conn.Begin()
 	if err != nil {
-		return false, fmt.Errorf("Unable to create event %v", err)
+		return false, err
 	}
 
+	locationId, err := locationservice.CreateLocationInfo(eventInfo.LocationInfo, tx)
+	if err != nil {
+		return false, err
+	}
+	if _, err := insertEventIntoDb(eventInfo, locationId, tx); err != nil {
+		return false, err
+	}
+	err = tx.Commit()
+	if err != nil {
+		return false, fmt.Errorf("Error with event transaction %v", err)
+	}
 	return true, nil
 }
 
@@ -32,6 +43,7 @@ func GetEvent(id string, conn *sql.DB) (*structures.Event, error) {
 	}
 
 	stmt, err := conn.Prepare(queries.GET_EVENT_BY_ID_AND_LOCATION_INFO)
+	defer stmt.Close()
 	if err != nil {
 		return nil, err
 	}
@@ -40,7 +52,17 @@ func GetEvent(id string, conn *sql.DB) (*structures.Event, error) {
 	event, err := mapSingleRowQuery(row)
 	if err != nil {
 		log.Println(err)
-		return &event, err
+		return &event, fmt.Errorf("No Event with UUID:" + id)
+	}
+	date, err := time.Parse(time.RFC3339, event.EndTime)
+	if err != nil {
+		log.Println(err)
+		log.Println(event.EndTime)
+		return &event, fmt.Errorf(`Issue Parsing date %s`, event.EndTime)
+	}
+	if event.Expired || time.Now().UTC().After(date) {
+		expireEvent(event, conn)
+		return &event, fmt.Errorf("Event has expired.")
 	}
 	return &event, nil
 }
@@ -50,18 +72,27 @@ func GetEventsByCity(city string, conn *sql.DB) ([]structures.Event, error) {
 		return nil, err
 	}
 	stmt, err := conn.Prepare(queries.GET_EVENT_BY_CITY_AND_LOCATION_INFO)
+	defer stmt.Close()
 	if err != nil {
 		return nil, err
 	}
 	log.Println(city)
 	rows, err := stmt.Query(city)
 	defer rows.Close()
-	events, err := mapMultiLineRows(rows)
+	events, err := MapMultiLineRows(rows)
 	if err != nil {
-		log.Println(err)
 		return events, getErrorMessage(err, city)
 	}
-	log.Println(events)
+	for _, e := range events {
+		date, err := time.Parse(time.RFC3339, e.EndTime)
+		if err != nil {
+			log.Println(`Issue Parsing date ` + e.EndTime)
+		}
+		if time.Now().UTC().After(date) {
+			expireEvent(e, conn)
+			log.Println(`Issue Parsing date ` + e.UUID)
+		}
+	}
 	return events, nil
 }
 
@@ -74,18 +105,24 @@ func AddUserToEvent(code string, userId string, eventId string, cords structures
 	if err != nil {
 		return false, fmt.Errorf("Failed to be UUID for User: " + userId)
 	}
-	row := conn.QueryRow("Select * from Event where UUID = $1", eventId)
-
-	event, err := mapSingleRowQuery(row)
+	event, err := mapSingleRowQuery(conn.QueryRow(queries.GET_EVENT_BY_ID_AND_LOCATION_INFO, eventId))
 	if err != nil {
+		log.Println(err)
 		return false, getErrorMessage(err, eventId)
 	}
+	decodedCode, err := b64.StdEncoding.DecodeString(event.Code)
+	if err != nil {
+		log.Panicln("unable to decode code: " + event.Code)
+	}
 	if checkPointInEvent(cords.Latitude, cords.Longitude,
-		structures.Point{Latitude: event.Location.TopLeftLat, Longitude: event.Location.TopLeftLon},
-		structures.Point{Latitude: event.Location.TopRightLat, Longitude: event.Location.TopRightLon},
-		structures.Point{Latitude: event.Location.BottomLeftLat, Longitude: event.Location.BottomLeftLon},
-		structures.Point{Latitude: event.Location.BottomRightLat, Longitude: event.Location.BottomRightLon}) {
-		if event.Public || (!event.Public && event.Code == code) {
+		structures.Point{Latitude: event.LocationInfo.TopLeftLat, Longitude: event.LocationInfo.TopLeftLon},
+		structures.Point{Latitude: event.LocationInfo.TopRightLat, Longitude: event.LocationInfo.TopRightLon},
+		structures.Point{Latitude: event.LocationInfo.BottomLeftLat, Longitude: event.LocationInfo.BottomLeftLon},
+		structures.Point{Latitude: event.LocationInfo.BottomRightLat, Longitude: event.LocationInfo.BottomRightLon}) {
+		if event.Expired {
+			return false, fmt.Errorf("Event has expired.")
+		}
+		if event.Public || (!event.Public && string(decodedCode) == code) {
 			return addUserToEvent(uId, eId, conn)
 		}
 	}
@@ -110,26 +147,27 @@ func mapSingleRowQuery(row *sql.Row) (structures.Event, error) {
 	var location structures.LocationInfo
 	if err := row.Scan(&event.UUID, &event.Name, &event.Created, &event.Description, &event.Public, &event.Code,
 		&location.UUID, &location.TopLeftLat, &location.TopLeftLon, &location.TopRightLat, &location.TopRightLon,
-		&location.BottomRightLat, &location.BottomRightLon, &location.BottomLeftLat, &location.BottomLeftLon, &location.City); err != nil {
+		&location.BottomRightLat, &location.BottomRightLon, &location.BottomLeftLat, &location.BottomLeftLon, &location.City,
+		&event.Expired, &event.EndTime); err != nil {
 		return event, err
 	}
-	event.Location = location
+	event.LocationInfo = location
 	return event, nil
 }
 
-func mapMultiLineRows(rows *sql.Rows) ([]structures.Event, error) {
-	var events []structures.Event
+func MapMultiLineRows(rows *sql.Rows) ([]structures.Event, error) {
+	var events []structures.Event = make([]structures.Event, 0)
 	for rows.Next() {
 		var event structures.Event
 		var location structures.LocationInfo
 		if err := rows.Scan(&event.UUID, &event.Name, &event.Created, &event.Description, &event.Public, &event.Code,
 			&location.UUID, &location.TopLeftLat, &location.TopLeftLon, &location.TopRightLat, &location.TopRightLon,
-			&location.BottomRightLat, &location.BottomRightLon, &location.BottomLeftLat, &location.BottomLeftLon, &location.City); err != nil {
+			&location.BottomRightLat, &location.BottomRightLon, &location.BottomLeftLat, &location.BottomLeftLon, &location.City,
+			&event.Expired, &event.EndTime); err != nil {
 			//continue
 			log.Println(err)
 		}
-
-		event.Location = location
+		event.LocationInfo = location
 		events = append(events, event)
 
 	}
@@ -154,4 +192,30 @@ func addUserToEvent(userId uuid.UUID, eventId uuid.UUID, conn *sql.DB) (bool, er
 		return false, err
 	}
 	return true, nil
+}
+
+// We can easily create events > FIx.
+func insertEventIntoDb(eventInfo structures.Event, lId uuid.UUID, conn *sql.Tx) (bool, error) {
+	encodedCode := b64.StdEncoding.EncodeToString([]byte(eventInfo.Code))
+	stmt, err := conn.Prepare(queries.INSERT_EVENT_INTO_DB)
+	defer stmt.Close()
+	if err != nil {
+		return false, err
+	}
+	log.Println(lId)
+	_, err = stmt.Exec(&eventInfo.Name, time.Now().UTC(), &eventInfo.Description,
+		&eventInfo.Public, &encodedCode, &lId, &eventInfo.Duration,
+		time.Now().UTC().Add(time.Hour*time.Duration(eventInfo.Duration)), false)
+	if err != nil {
+		log.Println(err)
+		return false, fmt.Errorf("Unable to create event %v", err)
+	}
+	return true, nil
+}
+
+func expireEvent(event structures.Event, conn *sql.DB) {
+	_, err := conn.Exec(queries.EXPIRE_EVENT, event.UUID)
+	if err != nil {
+		log.Println(`Issue expiring event with UUID: `, event.UUID)
+	}
 }
