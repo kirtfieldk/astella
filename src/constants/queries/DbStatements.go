@@ -15,8 +15,10 @@ var GET_EVENTS_LOCATION_INFO_USER_IN string = `Select e.id, e.event_name, e.crea
 	l.bottom_left_lat, l.bottom_left_lon, l.city, e.expired, e.end_time FROM members m LEFT JOIN events e on m.event_id = e.id
 	LEFT JOIN locationInfo l ON l.id = e.location_id WHERE m.user_id = $1 AND e.expired = false;`
 
-var GET_MESSAGES_IN_EVENT string = `SELECT id, content, user_id, created, event_id, parent_id,  upvotes,
-	pinned, latitude, longitude FROM messages WHERE event_id = $1 ORDER BY created DESC LIMIT 30`
+var GET_MESSAGES_IN_EVENT string = `SELECT m.id, m.content, m.created, m.event_id, m.parent_id,  m.upvotes,
+	m.pinned, m.latitude, m.longitude, u.id, u.username, u.description, u.created, u.ig, u.twitter, 
+	u.tiktok, u.avatar_url, u.img_one, u.img_two, u.img_three FROM messages m LEFT JOIN users u ON m.user_id = u.id 
+	WHERE event_id = $1 ORDER BY m.created DESC LIMIT 30`
 
 var GET_LOCATION_FOR_EVENT string = `SELECT  
 	locationInfo.id, 
@@ -31,7 +33,7 @@ var GET_LOCATION_FOR_EVENT string = `SELECT
 	FROM locationInfo LEFT JOIN events ON 
 	events.location_id = locationInfo.id WHERE events.id = $1`
 
-var FIND_USER_IN_EVENT string = `SELECT id  FROM members WHERE user_id = $1 AND event_id = $2`
+var FIND_IF_USER_IN_EVENT string = `SELECT id  FROM members WHERE user_id = $1 AND event_id = $2`
 var INSERT_MESSAGE_WITH_PARENT_ID string = `Insert INTO messages (content,user_id,created,event_id,parent_id,upvotes, pinned,latitude,longitude) VALUES
 		($1, $2, $3, $4, $5, $6, $7, $8, $9);`
 var INSERT_MESSAGE_WITHOUT_PARENT_ID string = `Insert INTO messages (content,user_id,created,event_id,upvotes, pinned,latitude,longitude) VALUES

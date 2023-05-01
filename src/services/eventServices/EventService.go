@@ -90,7 +90,7 @@ func GetEventsByCity(city string, conn *sql.DB) ([]structures.Event, error) {
 		}
 		if time.Now().UTC().After(date) {
 			expireEvent(e, conn)
-			log.Println(`Issue Parsing date ` + e.UUID)
+			log.Println(`Issue Parsing date ` + e.Id)
 		}
 	}
 	return events, nil
@@ -122,7 +122,7 @@ func AddUserToEvent(code string, userId string, eventId string, cords structures
 		if event.Expired {
 			return false, fmt.Errorf("Event has expired.")
 		}
-		if event.Public || (!event.Public && string(decodedCode) == code) {
+		if event.IsPublic || (!event.IsPublic && string(decodedCode) == code) {
 			return addUserToEvent(uId, eId, conn)
 		}
 	}
@@ -145,8 +145,8 @@ func IsUserInEvent(userId uuid.UUID, eventId uuid.UUID) {
 func mapSingleRowQuery(row *sql.Row) (structures.Event, error) {
 	var event structures.Event
 	var location structures.LocationInfo
-	if err := row.Scan(&event.UUID, &event.Name, &event.Created, &event.Description, &event.Public, &event.Code,
-		&location.UUID, &location.TopLeftLat, &location.TopLeftLon, &location.TopRightLat, &location.TopRightLon,
+	if err := row.Scan(&event.Id, &event.Name, &event.Created, &event.Description, &event.IsPublic, &event.Code,
+		&location.Id, &location.TopLeftLat, &location.TopLeftLon, &location.TopRightLat, &location.TopRightLon,
 		&location.BottomRightLat, &location.BottomRightLon, &location.BottomLeftLat, &location.BottomLeftLon, &location.City,
 		&event.Expired, &event.EndTime); err != nil {
 		return event, err
@@ -160,8 +160,8 @@ func MapMultiLineRows(rows *sql.Rows) ([]structures.Event, error) {
 	for rows.Next() {
 		var event structures.Event
 		var location structures.LocationInfo
-		if err := rows.Scan(&event.UUID, &event.Name, &event.Created, &event.Description, &event.Public, &event.Code,
-			&location.UUID, &location.TopLeftLat, &location.TopLeftLon, &location.TopRightLat, &location.TopRightLon,
+		if err := rows.Scan(&event.Id, &event.Name, &event.Created, &event.Description, &event.IsPublic, &event.Code,
+			&location.Id, &location.TopLeftLat, &location.TopLeftLon, &location.TopRightLat, &location.TopRightLon,
 			&location.BottomRightLat, &location.BottomRightLon, &location.BottomLeftLat, &location.BottomLeftLon, &location.City,
 			&event.Expired, &event.EndTime); err != nil {
 			//continue
@@ -204,7 +204,7 @@ func insertEventIntoDb(eventInfo structures.Event, lId uuid.UUID, conn *sql.Tx) 
 	}
 	log.Println(lId)
 	_, err = stmt.Exec(&eventInfo.Name, time.Now().UTC(), &eventInfo.Description,
-		&eventInfo.Public, &encodedCode, &lId, &eventInfo.Duration,
+		&eventInfo.IsPublic, &encodedCode, &lId, &eventInfo.Duration,
 		time.Now().UTC().Add(time.Hour*time.Duration(eventInfo.Duration)), false)
 	if err != nil {
 		log.Println(err)
@@ -214,8 +214,8 @@ func insertEventIntoDb(eventInfo structures.Event, lId uuid.UUID, conn *sql.Tx) 
 }
 
 func expireEvent(event structures.Event, conn *sql.DB) {
-	_, err := conn.Exec(queries.EXPIRE_EVENT, event.UUID)
+	_, err := conn.Exec(queries.EXPIRE_EVENT, event.Id)
 	if err != nil {
-		log.Println(`Issue expiring event with UUID: `, event.UUID)
+		log.Println(`Issue expiring event with UUID: `, event.Id)
 	}
 }

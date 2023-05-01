@@ -14,7 +14,7 @@ import (
 func GetEventLocation(id uuid.UUID, conn *sql.DB) structures.LocationInfo {
 	var locationInfo structures.LocationInfo
 	s := conn.QueryRow(queries.GET_LOCATION_FOR_EVENT, id)
-	err := s.Scan(&locationInfo.UUID, &locationInfo.TopLeftLat, &locationInfo.TopLeftLon,
+	err := s.Scan(&locationInfo.Id, &locationInfo.TopLeftLat, &locationInfo.TopLeftLon,
 		&locationInfo.TopRightLat, &locationInfo.TopRightLon, &locationInfo.BottomLeftLat,
 		&locationInfo.BottomLeftLon, &locationInfo.BottomRightLat, &locationInfo.BottomRightLon)
 	if err != nil {

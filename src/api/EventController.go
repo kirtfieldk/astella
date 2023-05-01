@@ -37,7 +37,7 @@ func (h *BaseHandler) GetEventByCity(c *gin.Context) {
 		c.IndentedJSON(http.StatusNotFound, gin.H{constants.MESSAGE: err})
 		return
 	}
-	c.IndentedJSON(http.StatusOK, events)
+	c.IndentedJSON(http.StatusOK, gin.H{constants.MESSAGE: &events})
 }
 
 func (h *BaseHandler) CreateEvent(c *gin.Context) {

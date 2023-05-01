@@ -33,8 +33,8 @@ func PostMessage(msg structures.Message, conn *sql.DB) (bool, error) {
 
 }
 
-func GetMessagesInEvent(eventId string, userId string, cords structures.Point, conn *sql.DB) ([]structures.Message, error) {
-	var messages []structures.Message
+func GetMessagesInEvent(eventId string, userId string, cords structures.Point, conn *sql.DB) ([]structures.MessageResponseStruct, error) {
+	var messages []structures.MessageResponseStruct
 	eId, err := uuidtransform.StringToUuidTransform(eventId)
 	if err != nil {
 		log.Printf("Failed to be UUID for Event: " + eventId)
@@ -108,15 +108,23 @@ func getErrorMessageForNoMessages(err error, id string) error {
 	return fmt.Errorf("MessagesEventById %s: %v", id, err)
 }
 
-func mapRowsToMessages(rows *sql.Rows) []structures.Message {
-	var messages []structures.Message = make([]structures.Message, 0)
+func mapRowsToMessages(rows *sql.Rows) []structures.MessageResponseStruct {
+	var messages []structures.MessageResponseStruct = make([]structures.MessageResponseStruct, 0)
 	for rows.Next() {
-		var msg structures.Message
-		if err := rows.Scan(&msg.UUID, &msg.Content, &msg.UserId, &msg.Created, &msg.EventId, &msg.ParentId, &msg.Upvotes,
-			&msg.Pinned, &msg.Latitude, &msg.Longitude); err != nil {
+		var msg structures.MessageResponseStruct
+		var usr structures.User
+		var parentId sql.NullString
+		if err := rows.Scan(
+			&msg.Id, &msg.Content, &msg.Created, &msg.EventId, &parentId, &msg.Upvotes, &msg.Pinned, &msg.Latitude, &msg.Longitude,
+			&usr.Id, &usr.Username, &usr.Description, &usr.Created, &usr.Ig, &usr.Twitter, &usr.TikTok, &usr.AvatarUrl,
+			&usr.ImgOne, &usr.ImgTwo, &usr.ImgThree); err != nil {
+			log.Println(err)
 			log.Println("Issue mapping DB row")
 		}
-
+		if &parentId != nil {
+			msg.ParentId = parentId.String
+		}
+		msg.User = usr
 		messages = append(messages, msg)
 	}
 	return messages
@@ -132,7 +140,7 @@ func isRequestInArea(id uuid.UUID, lat float32, long float32, conn *sql.DB) bool
 }
 
 func isUserInEvent(userId uuid.UUID, eventId uuid.UUID, conn *sql.DB) bool {
-	stmt, err := conn.Prepare(queries.FIND_USER_IN_EVENT)
+	stmt, err := conn.Prepare(queries.FIND_IF_USER_IN_EVENT)
 	defer stmt.Close()
 	if err != nil {
 		log.Println("Touble preparing statement for isUserInEvent")
@@ -145,7 +153,7 @@ func isUserInEvent(userId uuid.UUID, eventId uuid.UUID, conn *sql.DB) bool {
 }
 
 func insertMessageIntoDB(msg structures.Message, conn *sql.DB) bool {
-	if msg.ParentId != "" {
+	if &msg.ParentId != nil {
 		_, err := conn.Exec(queries.INSERT_MESSAGE_WITH_PARENT_ID, &msg.Content, &msg.UserId, time.Now(), &msg.EventId, &msg.ParentId, &msg.Upvotes, &msg.Pinned,
 			&msg.Latitude, &msg.Longitude)
 		if err != nil {
@@ -163,10 +171,11 @@ func insertMessageIntoDB(msg structures.Message, conn *sql.DB) bool {
 	return true
 }
 
-func getMessages(eventId uuid.UUID, conn *sql.DB) ([]structures.Message, error) {
+func getMessages(eventId uuid.UUID, conn *sql.DB) ([]structures.MessageResponseStruct, error) {
 	rows, err := conn.Query(queries.GET_MESSAGES_IN_EVENT, eventId)
 	defer rows.Close()
 	if err != nil {
+		log.Println(err)
 		return nil, err
 	}
 	return mapRowsToMessages(rows), nil

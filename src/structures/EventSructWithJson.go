@@ -1,7 +1,7 @@
 package structures
 
 type EventWithJsonCords struct {
-	UUID        string       `json:"uuid"`
+	Id          string       `json:"id"`
 	Name        string       `json:"name"`
 	Public      bool         `json:"public"`
 	Duration    string       `json:"duration"`

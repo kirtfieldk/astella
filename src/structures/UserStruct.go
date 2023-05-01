@@ -1,7 +1,7 @@
 package structures
 
 type User struct {
-	UUID        string `json:"uuid"`
+	Id          string `json:"id"`
 	Username    string `json:"username"`
 	Created     string `json:"created"`
 	Ig          string `json:"ig"`

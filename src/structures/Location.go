@@ -1,7 +1,7 @@
 package structures
 
 type LocationInfo struct {
-	UUID           string  `json:"uuid"`
+	Id             string  `json:"id"`
 	TopLeftLat     float32 `json:"top_left_lat"`
 	TopLeftLon     float32 `json:"top_left_lon"`
 	TopRightLat    float32 `json:"top_right_lat"`

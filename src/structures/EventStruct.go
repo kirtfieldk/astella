@@ -1,9 +1,9 @@
 package structures
 
 type Event struct {
-	UUID         string       `json:"uuid"`
+	Id           string       `json:"id"`
 	Name         string       `json:"name"`
-	Public       bool         `json:"public"`
+	IsPublic     bool         `json:"is_public"`
 	Duration     int16        `json:"duration"`
 	Created      string       `json:"created"`
 	Description  string       `json:"description"`

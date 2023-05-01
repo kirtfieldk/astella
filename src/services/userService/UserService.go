@@ -15,7 +15,7 @@ func MapUserRows(rows *sql.Rows) []structures.User {
 	var users []structures.User
 	for rows.Next() {
 		var usr structures.User
-		if err := rows.Scan(&usr.UUID, &usr.Username, &usr.Description, &usr.Created, &usr.Ig, &usr.Twitter, &usr.TikTok, &usr.AvatarUrl,
+		if err := rows.Scan(&usr.Id, &usr.Username, &usr.Description, &usr.Created, &usr.Ig, &usr.Twitter, &usr.TikTok, &usr.AvatarUrl,
 			&usr.ImgOne, &usr.ImgTwo, &usr.ImgThree); err != nil {
 			log.Println("Issue mapping DB row for user")
 		}
@@ -31,7 +31,7 @@ func UpdateUserProfile(user structures.User, conn *sql.DB) (bool, error) {
 		&user.Ig, &user.Twitter, &user.TikTok, &user.AvatarUrl, &user.ImgOne, &user.ImgTwo, &user.ImgThree, &user.Description)
 	if err != nil {
 		log.Panicln(err)
-		return false, fmt.Errorf("Cannot Update User: " + user.UUID)
+		return false, fmt.Errorf("Cannot Update User: " + user.Id)
 	}
 	return true, nil
 }

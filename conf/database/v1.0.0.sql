@@ -4,24 +4,24 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
 CREATE TABLE IF NOT EXISTS locationInfo(
     id uuid PRIMARY KEY DEFAULT uuid_generate_v4 (),
-    top_left_lat float,
-    top_left_lon float,
-    top_right_lat float,
-    top_right_lon float,
-    bottom_left_lat float,
-    bottom_left_lon float,
-    bottom_right_lat float,
-    bottom_right_lon float,
-    city varchar(100)
+    top_left_lat float NOT NULL,
+    top_left_lon float NOT NULL,
+    top_right_lat float NOT NULL,
+    top_right_lon float NOT NULL,
+    bottom_left_lat float NOT NULL,
+    bottom_left_lon float NOT NULL,
+    bottom_right_lat float NOT NULL,
+    bottom_right_lon float NOT NULL,
+    city varchar(100) NOT NULL DEFAULT ''
 );
 
  CREATE TABLE IF NOT EXISTS events(
     id uuid PRIMARY KEY DEFAULT uuid_generate_v4 (),
     event_name varchar(80) NOT NULL,
     created TIMESTAMP NOT NULL,
-    description varchar(400),
+    description varchar(400) NOT NULL DEFAULT '',
     public BOOLEAN DEFAULT FALSE,
-    code varchar(20),
+    code varchar(20) NOT NULL DEFAULT '',
     expired BOOLEAN DEFAULT FALSE,
     end_time TIMESTAMP NOT NULL, 
     duration float,
@@ -38,14 +38,14 @@ CREATE TABLE IF NOT EXISTS users (
     id uuid PRIMARY KEY DEFAULT uuid_generate_v4 (),
     created TIMESTAMP NOT NULL, 
     username varchar(80) NOT NULL,
-    description varchar(300),
-    ig varchar(120),
-    twitter varchar(120),
-    tiktok varchar(120),
-    avatar_url varchar(120),
-    img_one varchar(120),
-    img_two varchar(120),
-    img_three varchar(120)
+    description varchar(300) NOT NULL DEFAULT '',
+    ig varchar(120) NOT NULL DEFAULT '',
+    twitter varchar(120) NOT NULL DEFAULT '',
+    tiktok varchar(120) NOT NULL DEFAULT '',
+    avatar_url varchar(120) NOT NULL DEFAULT '',
+    img_one varchar(120) NOT NULL DEFAULT '',
+    img_two varchar(120) NOT NULL DEFAULT '',
+    img_three varchar(120) NOT NULL DEFAULT ''
 );
 
 CREATE TABLE IF NOT EXISTS admins(
@@ -86,14 +86,17 @@ CREATE TABLE IF NOT EXISTS messages (
     parent_id UUID,
     upvotes integer DEFAULT 0,
     pinned BOOLEAN DEFAULT FALSE,
-    latitude float,
-    longitude float,
+    latitude float NOT NULL,
+    longitude float NOT NULL,
     CONSTRAINT fk_user
       FOREIGN KEY(user_id) 
 	  REFERENCES users(id),
     CONSTRAINT fk_event
         FOREIGN KEY(event_id) 
-        REFERENCES events(id)
+        REFERENCES events(id),
+    CONSTRAINT fk_message
+        FOREIGN KEY(parent_id) 
+        REFERENCES messages(id)
 
 );
 
@@ -101,7 +104,7 @@ CREATE TABLE IF NOT EXISTS likes (
     id uuid PRIMARY KEY DEFAULT uuid_generate_v4 (), 
     user_id UUID NOT NULL,
     message_id UUID NOT NULL,
-    created TIMESTAMP,
+    created TIMESTAMP NOT NULL,
     CONSTRAINT fk_user
       FOREIGN KEY(user_id) 
 	  REFERENCES users(id),

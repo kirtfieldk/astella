@@ -1,10 +1,10 @@
 package structures
 
-type Message struct {
+type MessageResponseStruct struct {
 	Id        string  `json:"id"`
 	Content   string  `json:"content"`
 	Created   string  `json:"created"`
-	UserId    string  `json:"user_id"`
+	User      User    `json:"user"`
 	ParentId  string  `json:"parent_id"`
 	EventId   string  `json:"event_id"`
 	Upvotes   int16   `json:"up_votes"`
