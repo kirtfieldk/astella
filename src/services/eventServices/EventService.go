@@ -9,9 +9,12 @@ import (
 	b64 "encoding/base64"
 
 	"github.com/google/uuid"
+	"github.com/kirtfieldk/astella/src/api/responses"
+	"github.com/kirtfieldk/astella/src/constants"
 	"github.com/kirtfieldk/astella/src/constants/queries"
 	locationservice "github.com/kirtfieldk/astella/src/services/locationService"
 	"github.com/kirtfieldk/astella/src/structures"
+	"github.com/kirtfieldk/astella/src/util"
 	uuidtransform "github.com/kirtfieldk/astella/src/util/uuidTransform"
 )
 
@@ -56,8 +59,6 @@ func GetEvent(id string, conn *sql.DB) (*structures.Event, error) {
 	}
 	date, err := time.Parse(time.RFC3339, event.EndTime)
 	if err != nil {
-		log.Println(err)
-		log.Println(event.EndTime)
 		return &event, fmt.Errorf(`Issue Parsing date %s`, event.EndTime)
 	}
 	if event.Expired || time.Now().UTC().After(date) {
@@ -67,33 +68,46 @@ func GetEvent(id string, conn *sql.DB) (*structures.Event, error) {
 	return &event, nil
 }
 
-func GetEventsByCity(city string, conn *sql.DB) ([]structures.Event, error) {
+func GetEventsByCity(city string, page int, conn *sql.DB) (responses.EventListResponse, error) {
+	var response responses.EventListResponse
 	if err := conn.Ping(); err != nil {
-		return nil, err
+		return response, err
 	}
 	stmt, err := conn.Prepare(queries.GET_EVENT_BY_CITY_AND_LOCATION_INFO)
 	defer stmt.Close()
 	if err != nil {
-		return nil, err
+		return response, err
 	}
-	log.Println(city)
-	rows, err := stmt.Query(city)
+	rows, err := stmt.Query(city, util.CalcQueryStart(page), constants.LIMIT)
 	defer rows.Close()
 	events, err := MapMultiLineRows(rows)
 	if err != nil {
-		return events, getErrorMessage(err, city)
+		return response, getErrorMessage(err, city)
 	}
-	for _, e := range events {
+	for index, e := range events {
 		date, err := time.Parse(time.RFC3339, e.EndTime)
 		if err != nil {
 			log.Println(`Issue Parsing date ` + e.EndTime)
 		}
 		if time.Now().UTC().After(date) {
 			expireEvent(e, conn)
-			log.Println(`Issue Parsing date ` + e.Id)
+			events[index] = events[len(events)-1]
+			events = events[:len(events)-1]
 		}
 	}
-	return events, nil
+	total, err := getTotalCountOfEventsInCity(city, conn)
+	if err != nil {
+		return response, fmt.Errorf("Issue Here")
+	}
+	response.Data = events
+	response.Info = structures.Info{
+		Count: len(events),
+		Total: total,
+		Page:  page,
+		Next:  page*constants.LIMIT < total && len(events) != total,
+	}
+
+	return response, nil
 }
 
 func AddUserToEvent(code string, userId string, eventId string, cords structures.Point, conn *sql.DB) (bool, error) {
@@ -218,4 +232,21 @@ func expireEvent(event structures.Event, conn *sql.DB) {
 	if err != nil {
 		log.Println(`Issue expiring event with UUID: `, event.Id)
 	}
+}
+
+func getTotalCountOfEventsInCity(city string, conn *sql.DB) (int, error) {
+	stmt, err := conn.Prepare(queries.GET_EVENT_BY_CITY_AND_LOCATION_INFO_COUNT)
+	var count int
+	defer stmt.Close()
+	if err != nil {
+		log.Panicln(err)
+		log.Println("Issue formating query for total number of events in city: " + city)
+		return count, err
+	}
+	err = stmt.QueryRow(city).Scan(&count)
+	if err != nil {
+		log.Println("Issue getting total number of events in city: " + city)
+		return count, err
+	}
+	return count, nil
 }

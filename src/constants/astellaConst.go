@@ -12,3 +12,6 @@ var CITY_NOT_FOUND string = "city not found"
 var PAYLOAD_IS_NOT_MSG string = "payload is not msg"
 var PAYLOAD_IS_NOT_LOCATION string = "payload is not location coordinates"
 var UNABLE_TO_UPVOTE_FOR_USER string = `Unable to Upvote message for user: %s`
+
+var LIMIT int = 20
+var PAGE = "page"

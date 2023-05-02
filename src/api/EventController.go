@@ -8,6 +8,7 @@ import (
 	"github.com/kirtfieldk/astella/src/constants"
 	eventservices "github.com/kirtfieldk/astella/src/services/eventServices"
 	"github.com/kirtfieldk/astella/src/structures"
+	"github.com/kirtfieldk/astella/src/util"
 )
 
 type codeWithLocationPayload struct {
@@ -32,12 +33,13 @@ func (h *BaseHandler) GetEvent(c *gin.Context) {
 
 func (h *BaseHandler) GetEventByCity(c *gin.Context) {
 	requestBody := readCityFromPayload(c)
-	events, err := eventservices.GetEventsByCity(requestBody.City, h.DB)
+	pagination := util.GetPageFromUrlQuery(c)
+	events, err := eventservices.GetEventsByCity(requestBody.City, pagination, h.DB)
 	if err != nil {
 		c.IndentedJSON(http.StatusNotFound, gin.H{constants.MESSAGE: err})
 		return
 	}
-	c.IndentedJSON(http.StatusOK, gin.H{constants.MESSAGE: &events})
+	c.IndentedJSON(http.StatusOK, events)
 }
 
 func (h *BaseHandler) CreateEvent(c *gin.Context) {

@@ -7,10 +7,11 @@ import (
 	"github.com/kirtfieldk/astella/src/constants"
 	messageservice "github.com/kirtfieldk/astella/src/services/messageService"
 	"github.com/kirtfieldk/astella/src/structures"
+	"github.com/kirtfieldk/astella/src/util"
 )
 
 func (h *BaseHandler) PostMessageToEvent(c *gin.Context) {
-	var msg structures.Message
+	var msg structures.MessageRequestBody
 	if err := c.BindJSON(&msg); err != nil {
 		c.IndentedJSON(http.StatusNotFound, gin.H{constants.MESSAGE: constants.PAYLOAD_IS_NOT_MSG})
 		return
@@ -28,16 +29,17 @@ func (h *BaseHandler) GetMessagesInEvent(c *gin.Context) {
 	var point structures.Point
 	eventId := c.Param(constants.EVENT_ID)
 	userId := c.Param(constants.USER_ID)
+	pagination := util.GetPageFromUrlQuery(c)
 	if err := c.BindJSON(&point); err != nil {
 		c.IndentedJSON(http.StatusNotFound, gin.H{constants.MESSAGE: constants.PAYLOAD_IS_NOT_LOCATION})
 		return
 	}
-	msg, err := messageservice.GetMessagesInEvent(eventId, userId, point, h.DB)
+	msg, err := messageservice.GetMessagesInEvent(eventId, userId, point, pagination, h.DB)
 	if err != nil {
 		c.IndentedJSON(http.StatusBadRequest, gin.H{constants.MESSAGE: err.Error()})
 		return
 	}
-	c.IndentedJSON(http.StatusOK, gin.H{constants.MESSAGE: msg})
+	c.IndentedJSON(http.StatusOK, msg)
 }
 
 func (h *BaseHandler) UpvoteMessage(c *gin.Context) {
@@ -62,11 +64,13 @@ func (h *BaseHandler) GetUserUpvotes(c *gin.Context) {
 	eventId := c.Param(constants.EVENT_ID)
 	userId := c.Param(constants.USER_ID)
 	messageId := c.Param(constants.MESSAGE_ID)
+	pagination := util.GetPageFromUrlQuery(c)
+
 	if err := c.BindJSON(&point); err != nil {
 		c.IndentedJSON(http.StatusBadRequest, gin.H{constants.MESSAGE: constants.PAYLOAD_IS_NOT_LOCATION})
 		return
 	}
-	users, err := messageservice.GetUserUpvotes(messageId, userId, eventId, point, h.DB)
+	users, err := messageservice.GetUserUpvotes(messageId, userId, eventId, point, pagination, h.DB)
 	if err != nil {
 		c.IndentedJSON(http.StatusNotFound, gin.H{constants.MESSAGE: err.Error()})
 		return

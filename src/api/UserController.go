@@ -6,11 +6,13 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/kirtfieldk/astella/src/constants"
 	userservice "github.com/kirtfieldk/astella/src/services/userService"
+	"github.com/kirtfieldk/astella/src/util"
 )
 
 func (h *BaseHandler) GeteventsMemberOf(c *gin.Context) {
 	userId := c.Param(constants.USER_ID)
-	events, err := userservice.GetUserEvents(userId, h.DB)
+	pagination := util.GetPageFromUrlQuery(c)
+	events, err := userservice.GetUserEvents(userId, pagination, h.DB)
 	if err != nil {
 		c.IndentedJSON(http.StatusBadRequest, gin.H{constants.MESSAGE: err.Error()})
 		return

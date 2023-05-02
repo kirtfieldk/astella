@@ -7,15 +7,17 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/kirtfieldk/astella/src/api/responses"
 	"github.com/kirtfieldk/astella/src/constants"
 	"github.com/kirtfieldk/astella/src/constants/queries"
 	locationservice "github.com/kirtfieldk/astella/src/services/locationService"
 	userservice "github.com/kirtfieldk/astella/src/services/userService"
 	"github.com/kirtfieldk/astella/src/structures"
+	"github.com/kirtfieldk/astella/src/util"
 	uuidtransform "github.com/kirtfieldk/astella/src/util/uuidTransform"
 )
 
-func PostMessage(msg structures.Message, conn *sql.DB) (bool, error) {
+func PostMessage(msg structures.MessageRequestBody, conn *sql.DB) (bool, error) {
 	eventId, err := uuidtransform.StringToUuidTransform(msg.EventId)
 	if err != nil {
 		log.Printf("Failed to be UUID for Event: " + msg.EventId)
@@ -23,6 +25,7 @@ func PostMessage(msg structures.Message, conn *sql.DB) (bool, error) {
 	}
 	userId, err := uuidtransform.StringToUuidTransform(msg.UserId)
 	if err != nil {
+		print(err)
 		return false, fmt.Errorf("Failed to be UUID for User: " + msg.UserId)
 	}
 	if isRequestInArea(eventId, msg.Latitude, msg.Longitude, conn) && isUserInEvent(userId, eventId, conn) {
@@ -33,8 +36,8 @@ func PostMessage(msg structures.Message, conn *sql.DB) (bool, error) {
 
 }
 
-func GetMessagesInEvent(eventId string, userId string, cords structures.Point, conn *sql.DB) ([]structures.MessageResponseStruct, error) {
-	var messages []structures.MessageResponseStruct
+func GetMessagesInEvent(eventId string, userId string, cords structures.Point, pagination int, conn *sql.DB) (responses.MessageListResponse, error) {
+	var messages responses.MessageListResponse
 	eId, err := uuidtransform.StringToUuidTransform(eventId)
 	if err != nil {
 		log.Printf("Failed to be UUID for Event: " + eventId)
@@ -47,7 +50,7 @@ func GetMessagesInEvent(eventId string, userId string, cords structures.Point, c
 	}
 
 	if isRequestInArea(eId, cords.Latitude, cords.Longitude, conn) && isUserInEvent(uId, eId, conn) {
-		return getMessages(eId, conn)
+		return getMessages(eId, pagination, conn)
 	}
 	return messages, fmt.Errorf("User is not in Event")
 
@@ -76,29 +79,60 @@ func UpvoteMessage(messageId string, userId string, eventId string, cords struct
 
 }
 
-func GetUserUpvotes(messageId string, userId string, eventId string, cords structures.Point, conn *sql.DB) ([]structures.User, error) {
+func GetUserUpvotes(messageId string, userId string, eventId string, cords structures.Point, pagination int, conn *sql.DB) (responses.UserListResponse, error) {
 	eId, err := uuidtransform.StringToUuidTransform(eventId)
+	var userResponse responses.UserListResponse
 	if err != nil {
-		return nil, fmt.Errorf("Failed to be UUID for Event: " + eventId)
+		return userResponse, fmt.Errorf("Failed to be UUID for Event: " + eventId)
 	}
 	uId, err := uuidtransform.StringToUuidTransform(userId)
 	if err != nil {
-		return nil, fmt.Errorf("Failed to be UUID for User: " + userId)
+		return userResponse, fmt.Errorf("Failed to be UUID for User: " + userId)
 	}
 	mId, err := uuidtransform.StringToUuidTransform(messageId)
 	if err != nil {
-		return nil, fmt.Errorf("Failed to be UUID for Message: " + messageId)
+		return userResponse, fmt.Errorf("Failed to be UUID for Message: " + messageId)
 	}
 	if isRequestInArea(eId, cords.Latitude, cords.Longitude, conn) && isUserInEvent(uId, eId, conn) {
-		rows, err := conn.Query(queries.QUERY_ALL_WHO_LIKE_MESSAGE, mId)
-		defer rows.Close()
+		users, err := getUsersUpvoteMessage(mId, pagination, conn)
 		if err != nil {
-			log.Println(err)
-			return nil, err
+			return userResponse, err
 		}
-		return userservice.MapUserRows(rows), nil
+		total, err := totalAmountOfUpvotes(mId, conn)
+		if err != nil {
+			return userResponse, err
+		}
+		info := structures.Info{
+			Count: len(users),
+			Page:  pagination,
+			Total: total,
+			Next:  pagination*constants.LIMIT < total && len(users) != total,
+		}
+
+		userResponse.Info = info
+		userResponse.Data = users
+		return userResponse, nil
 	}
-	return nil, fmt.Errorf("User is not in Event")
+	return userResponse, fmt.Errorf("User is not in Event")
+}
+
+func getUsersUpvoteMessage(messageId uuid.UUID, pagination int, conn *sql.DB) ([]structures.User, error) {
+	rows, err := conn.Query(queries.QUERY_ALL_WHO_LIKE_MESSAGE, messageId, util.CalcQueryStart(pagination), constants.LIMIT)
+	defer rows.Close()
+	if err != nil {
+		log.Println(err)
+		return nil, err
+	}
+	return userservice.MapUserRows(rows), nil
+}
+
+func totalAmountOfUpvotes(messageId uuid.UUID, conn *sql.DB) (int, error) {
+	var count int
+	if err := conn.QueryRow(queries.QUERY_ALL_WHO_LIKE_MESSAGE_COUNT, messageId).Scan(&count); err != nil {
+		log.Println(err)
+		return count, fmt.Errorf("Unable to count likes for %v", messageId)
+	}
+	return count, nil
 }
 
 func getErrorMessageForNoMessages(err error, id string) error {
@@ -108,10 +142,12 @@ func getErrorMessageForNoMessages(err error, id string) error {
 	return fmt.Errorf("MessagesEventById %s: %v", id, err)
 }
 
-func mapRowsToMessages(rows *sql.Rows) []structures.MessageResponseStruct {
-	var messages []structures.MessageResponseStruct = make([]structures.MessageResponseStruct, 0)
+func mapRowsToMessages(rows *sql.Rows) responses.MessageListResponse {
+	var response responses.MessageListResponse
+	var messages []structures.Message = make([]structures.Message, 0)
+	var info structures.Info
 	for rows.Next() {
-		var msg structures.MessageResponseStruct
+		var msg structures.Message
 		var usr structures.User
 		var parentId sql.NullString
 		if err := rows.Scan(
@@ -127,7 +163,10 @@ func mapRowsToMessages(rows *sql.Rows) []structures.MessageResponseStruct {
 		msg.User = usr
 		messages = append(messages, msg)
 	}
-	return messages
+	info.Count = len(messages)
+	response.Info = info
+	response.Data = messages
+	return response
 }
 
 func isRequestInArea(id uuid.UUID, lat float32, long float32, conn *sql.DB) bool {
@@ -152,8 +191,8 @@ func isUserInEvent(userId uuid.UUID, eventId uuid.UUID, conn *sql.DB) bool {
 	return true
 }
 
-func insertMessageIntoDB(msg structures.Message, conn *sql.DB) bool {
-	if &msg.ParentId != nil {
+func insertMessageIntoDB(msg structures.MessageRequestBody, conn *sql.DB) bool {
+	if msg.ParentId != "" {
 		_, err := conn.Exec(queries.INSERT_MESSAGE_WITH_PARENT_ID, &msg.Content, &msg.UserId, time.Now(), &msg.EventId, &msg.ParentId, &msg.Upvotes, &msg.Pinned,
 			&msg.Latitude, &msg.Longitude)
 		if err != nil {
@@ -171,14 +210,23 @@ func insertMessageIntoDB(msg structures.Message, conn *sql.DB) bool {
 	return true
 }
 
-func getMessages(eventId uuid.UUID, conn *sql.DB) ([]structures.MessageResponseStruct, error) {
-	rows, err := conn.Query(queries.GET_MESSAGES_IN_EVENT, eventId)
+func getMessages(eventId uuid.UUID, page int, conn *sql.DB) (responses.MessageListResponse, error) {
+	var response responses.MessageListResponse
+	var total int
+	rows, err := conn.Query(queries.GET_MESSAGES_IN_EVENT, eventId, util.CalcQueryStart(page), constants.LIMIT)
 	defer rows.Close()
 	if err != nil {
 		log.Println(err)
-		return nil, err
+		return response, err
 	}
-	return mapRowsToMessages(rows), nil
+	response = mapRowsToMessages(rows)
+	if err = conn.QueryRow(queries.GET_MESSAGES_IN_EVENT_COUNT, eventId).Scan(&total); err != nil {
+		log.Println(err)
+		return response, err
+	}
+	response.Info.Total = total
+
+	return response, nil
 
 }
 

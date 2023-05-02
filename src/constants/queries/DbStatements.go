@@ -8,17 +8,25 @@ var GET_EVENT_BY_ID_AND_LOCATION_INFO string = `Select e.id, e.event_name, e.cre
 var GET_EVENT_BY_CITY_AND_LOCATION_INFO string = `Select e.id, e.event_name, e.created, e.description, e.public, e.code, 
 	l.id, l.top_left_lat, l.top_left_lon, l.top_right_lat, l.top_right_lon, l.bottom_right_lat,l.bottom_right_lon,
 	l.bottom_left_lat, l.bottom_left_lon, l.city, e.expired, e.end_time FROM events e LEFT JOIN locationInfo l ON l.id = e.location_id WHERE l.city = $1 
-	AND e.expired = false;`
+	AND e.expired = false OFFSET $2 LIMIT $3;`
+
+var GET_EVENT_BY_CITY_AND_LOCATION_INFO_COUNT string = `Select COUNT(e.id) FROM events e LEFT JOIN 
+	locationInfo l ON l.id = e.location_id WHERE l.city = $1 AND e.expired = false;`
 
 var GET_EVENTS_LOCATION_INFO_USER_IN string = `Select e.id, e.event_name, e.created, e.description, e.public, e.code, 
 	l.id, l.top_left_lat, l.top_left_lon, l.top_right_lat, l.top_right_lon, l.bottom_right_lat,l.bottom_right_lon,
 	l.bottom_left_lat, l.bottom_left_lon, l.city, e.expired, e.end_time FROM members m LEFT JOIN events e on m.event_id = e.id
-	LEFT JOIN locationInfo l ON l.id = e.location_id WHERE m.user_id = $1 AND e.expired = false;`
+	LEFT JOIN locationInfo l ON l.id = e.location_id WHERE m.user_id = $1 AND e.expired = false OFFSET $2 LIMIT $3;`
+
+var GET_EVENTS_LOCATION_INFO_USER_IN_COUNT string = `Select COUNT(e.id) FROM members m LEFT JOIN events e on m.event_id = e.id
+	WHERE m.user_id = $1 AND e.expired = false;`
 
 var GET_MESSAGES_IN_EVENT string = `SELECT m.id, m.content, m.created, m.event_id, m.parent_id,  m.upvotes,
 	m.pinned, m.latitude, m.longitude, u.id, u.username, u.description, u.created, u.ig, u.twitter, 
 	u.tiktok, u.avatar_url, u.img_one, u.img_two, u.img_three FROM messages m LEFT JOIN users u ON m.user_id = u.id 
-	WHERE event_id = $1 ORDER BY m.created DESC LIMIT 30`
+	WHERE event_id = $1 ORDER BY m.created DESC OFFSET $2 LIMIT $3;`
+
+var GET_MESSAGES_IN_EVENT_COUNT string = `SELECT COUNT(id) FROM messages WHERE event_id = $1;`
 
 var GET_LOCATION_FOR_EVENT string = `SELECT  
 	locationInfo.id, 
@@ -39,7 +47,8 @@ var INSERT_MESSAGE_WITH_PARENT_ID string = `Insert INTO messages (content,user_i
 var INSERT_MESSAGE_WITHOUT_PARENT_ID string = `Insert INTO messages (content,user_id,created,event_id,upvotes, pinned,latitude,longitude) VALUES
 		($1, $2, $3, $4, $5, $6, $7, $8);`
 var QUERY_ALL_WHO_LIKE_MESSAGE string = `SELECT u.id, u.username, u.description, u.created, u.ig, u.twitter, u.tiktok, u.avatar_url, u.img_one, u.img_two, u.img_three 
-		FROM likes Left JOIN users u on likes.user_id = u.id WHERE likes.message_id = $1;`
+		FROM likes Left JOIN users u on likes.user_id = u.id WHERE likes.message_id = $1 OFFSET $2 LIMIT $3;`
+var QUERY_ALL_WHO_LIKE_MESSAGE_COUNT string = `SELECT COUNT(id) FROM likes WHERE likes.message_id = $1;`
 var INSERT_EVENT_INTO_DB = `INSERT INTO events (event_name, created, description, public, code, location_id, duration, end_time, expired) 
 		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9);`
 var INSERT_LOCATION_INTO_DB_RETURN_ID string = `INSERT INTO locationInfo (top_left_lat, top_left_lon, top_right_lat, 

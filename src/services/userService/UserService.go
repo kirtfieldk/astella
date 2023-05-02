@@ -6,6 +6,8 @@ import (
 	"log"
 
 	"github.com/google/uuid"
+	"github.com/kirtfieldk/astella/src/api/responses"
+	"github.com/kirtfieldk/astella/src/constants"
 	"github.com/kirtfieldk/astella/src/constants/queries"
 	eventservices "github.com/kirtfieldk/astella/src/services/eventServices"
 	"github.com/kirtfieldk/astella/src/structures"
@@ -36,19 +38,39 @@ func UpdateUserProfile(user structures.User, conn *sql.DB) (bool, error) {
 	return true, nil
 }
 
-func GetUserEvents(userId string, conn *sql.DB) ([]structures.Event, error) {
-	var events []structures.Event
+func GetUserEvents(userId string, page int, conn *sql.DB) (responses.EventListResponse, error) {
+	var response responses.EventListResponse
 	uuidInUrl, err := uuid.ParseBytes([]byte(userId))
 	if err != nil {
-		return nil, err
+		return response, err
 	}
+	events, err := getEventUserIsMember(uuidInUrl, page, conn)
+	if err != nil {
+		log.Println(err)
+		return response, fmt.Errorf("Unable to get users")
+	}
+	total, err := getTotalNumberOfEventsUserIsApartOf(uuidInUrl, conn)
+	if err != nil {
+		return response, err
+	}
+	response.Data = events
+	response.Info = structures.Info{
+		Count: len(events),
+		Total: total,
+		Page:  page,
+	}
+	return response, nil
+}
+
+func getEventUserIsMember(userId uuid.UUID, page int, conn *sql.DB) ([]structures.Event, error) {
+	var events []structures.Event
 	stmt, err := conn.Prepare(queries.GET_EVENTS_LOCATION_INFO_USER_IN)
 	defer stmt.Close()
 	if err != nil {
 		log.Println(err)
 		return events, fmt.Errorf(`Unable to prepare statement to get user events.`)
 	}
-	rows, err := stmt.Query(uuidInUrl)
+	rows, err := stmt.Query(userId, page*constants.LIMIT, constants.LIMIT)
 	if err != nil {
 		log.Println(err)
 		return events, fmt.Errorf(`Unable to query member's event.`)
@@ -58,4 +80,19 @@ func GetUserEvents(userId string, conn *sql.DB) ([]structures.Event, error) {
 		return events, fmt.Errorf(`unable to map events`)
 	}
 	return events, nil
+}
+
+func getTotalNumberOfEventsUserIsApartOf(userId uuid.UUID, conn *sql.DB) (int, error) {
+	var count int
+	stmt, err := conn.Prepare(queries.GET_EVENTS_LOCATION_INFO_USER_IN_COUNT)
+	defer stmt.Close()
+	if err != nil {
+		log.Println(err)
+		return count, fmt.Errorf("Issue Here")
+	}
+	err = stmt.QueryRow(userId).Scan(&count)
+	if err != nil {
+		return count, err
+	}
+	return count, nil
 }
