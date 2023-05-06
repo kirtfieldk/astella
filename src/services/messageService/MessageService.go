@@ -36,7 +36,7 @@ func PostMessage(msg structures.MessageRequestBody, conn *sql.DB) (bool, error) 
 
 }
 
-func GetMessagesInEvent(eventId string, userId string, cords structures.Point, pagination int, conn *sql.DB) (responses.MessageListResponse, error) {
+func GetMessagesInEvent(eventId string, userId string, pagination int, conn *sql.DB) (responses.MessageListResponse, error) {
 	var messages responses.MessageListResponse
 	eId, err := uuidtransform.StringToUuidTransform(eventId)
 	if err != nil {
@@ -49,7 +49,7 @@ func GetMessagesInEvent(eventId string, userId string, cords structures.Point, p
 		return messages, err
 	}
 
-	if isRequestInArea(eId, cords.Latitude, cords.Longitude, conn) && isUserInEvent(uId, eId, conn) {
+	if isUserInEvent(uId, eId, conn) {
 		return getMessages(eId, pagination, conn)
 	}
 	return messages, fmt.Errorf("User is not in Event")

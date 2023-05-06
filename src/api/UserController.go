@@ -12,7 +12,19 @@ import (
 func (h *BaseHandler) GeteventsMemberOf(c *gin.Context) {
 	userId := c.Param(constants.USER_ID)
 	pagination := util.GetPageFromUrlQuery(c)
-	events, err := userservice.GetUserEvents(userId, pagination, h.DB)
+	events, err := userservice.GetEventUserIsMember(userId, pagination, h.DB)
+	if err != nil {
+		c.IndentedJSON(http.StatusBadRequest, gin.H{constants.MESSAGE: err.Error()})
+		return
+	}
+	c.IndentedJSON(http.StatusAccepted, events)
+
+}
+
+func (h *BaseHandler) GeteventsMembers(c *gin.Context) {
+	eventId := c.Param(constants.EVENT_ID)
+	pagination := util.GetPageFromUrlQuery(c)
+	events, err := userservice.GetEventMembers(eventId, pagination, h.DB)
 	if err != nil {
 		c.IndentedJSON(http.StatusBadRequest, gin.H{constants.MESSAGE: err.Error()})
 		return

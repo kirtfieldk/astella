@@ -26,15 +26,10 @@ func (h *BaseHandler) PostMessageToEvent(c *gin.Context) {
 }
 
 func (h *BaseHandler) GetMessagesInEvent(c *gin.Context) {
-	var point structures.Point
 	eventId := c.Param(constants.EVENT_ID)
 	userId := c.Param(constants.USER_ID)
 	pagination := util.GetPageFromUrlQuery(c)
-	if err := c.BindJSON(&point); err != nil {
-		c.IndentedJSON(http.StatusNotFound, gin.H{constants.MESSAGE: constants.PAYLOAD_IS_NOT_LOCATION})
-		return
-	}
-	msg, err := messageservice.GetMessagesInEvent(eventId, userId, point, pagination, h.DB)
+	msg, err := messageservice.GetMessagesInEvent(eventId, userId, pagination, h.DB)
 	if err != nil {
 		c.IndentedJSON(http.StatusBadRequest, gin.H{constants.MESSAGE: err.Error()})
 		return

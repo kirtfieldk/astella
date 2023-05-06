@@ -18,8 +18,17 @@ var GET_EVENTS_LOCATION_INFO_USER_IN string = `Select e.id, e.event_name, e.crea
 	l.bottom_left_lat, l.bottom_left_lon, l.city, e.expired, e.end_time FROM members m LEFT JOIN events e on m.event_id = e.id
 	LEFT JOIN locationInfo l ON l.id = e.location_id WHERE m.user_id = $1 AND e.expired = false OFFSET $2 LIMIT $3;`
 
+var GET_EVENTS_MEMBER_OF_COUNT string = `Select COUNT(members.id) FROM members LEFT JOIN events e 
+	ON e.id = members.event_id WHERE user_id = $1 AND e.expired = false;`
+
+var GET_EVENT_USERS string = `Select u.id, u.username, u.description, u.created, u.ig, u.twitter, u.tiktok, u.avatar_url, 
+	u.img_one, u.img_two, u.img_three FROM members m LEFT JOIN users u on m.user_id = u.id
+	WHERE m.event_id = $1 OFFSET $2 LIMIT $3;`
+
 var GET_EVENTS_LOCATION_INFO_USER_IN_COUNT string = `Select COUNT(e.id) FROM members m LEFT JOIN events e on m.event_id = e.id
 	WHERE m.user_id = $1 AND e.expired = false;`
+var GET_EVENTS_MEMBERS_COUNT string = `Select COUNT(m.id) FROM members m LEFT JOIN events e on m.event_id = e.id
+	WHERE e.id = $1 AND e.expired = false;`
 
 var GET_MESSAGES_IN_EVENT string = `SELECT m.id, m.content, m.created, m.event_id, m.parent_id,  m.upvotes,
 	m.pinned, m.latitude, m.longitude, u.id, u.username, u.description, u.created, u.ig, u.twitter, 

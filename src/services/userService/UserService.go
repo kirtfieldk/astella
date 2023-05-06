@@ -11,6 +11,8 @@ import (
 	"github.com/kirtfieldk/astella/src/constants/queries"
 	eventservices "github.com/kirtfieldk/astella/src/services/eventServices"
 	"github.com/kirtfieldk/astella/src/structures"
+	"github.com/kirtfieldk/astella/src/util"
+	uuidtransform "github.com/kirtfieldk/astella/src/util/uuidTransform"
 )
 
 func MapUserRows(rows *sql.Rows) []structures.User {
@@ -38,48 +40,73 @@ func UpdateUserProfile(user structures.User, conn *sql.DB) (bool, error) {
 	return true, nil
 }
 
-func GetUserEvents(userId string, page int, conn *sql.DB) (responses.EventListResponse, error) {
-	var response responses.EventListResponse
-	uuidInUrl, err := uuid.ParseBytes([]byte(userId))
+func GetEventMembers(eventId string, page int, conn *sql.DB) (responses.UserListResponse, error) {
+	var resp responses.UserListResponse
+	eId, err := uuidtransform.StringToUuidTransform(eventId)
 	if err != nil {
-		return response, err
+		return resp, fmt.Errorf("Failed to be UUID for User: " + eventId)
 	}
-	events, err := getEventUserIsMember(uuidInUrl, page, conn)
-	if err != nil {
-		log.Println(err)
-		return response, fmt.Errorf("Unable to get users")
-	}
-	total, err := getTotalNumberOfEventsUserIsApartOf(uuidInUrl, conn)
-	if err != nil {
-		return response, err
-	}
-	response.Data = events
-	response.Info = structures.Info{
-		Count: len(events),
-		Total: total,
-		Page:  page,
-	}
-	return response, nil
-}
-
-func getEventUserIsMember(userId uuid.UUID, page int, conn *sql.DB) ([]structures.Event, error) {
-	var events []structures.Event
-	stmt, err := conn.Prepare(queries.GET_EVENTS_LOCATION_INFO_USER_IN)
+	stmt, err := conn.Prepare(queries.GET_EVENT_USERS)
 	defer stmt.Close()
 	if err != nil {
 		log.Println(err)
-		return events, fmt.Errorf(`Unable to prepare statement to get user events.`)
+		return resp, fmt.Errorf(`Unable to prepare statement to get user events.`)
 	}
-	rows, err := stmt.Query(userId, page*constants.LIMIT, constants.LIMIT)
+	rows, err := stmt.Query(eId, page*constants.LIMIT, constants.LIMIT)
 	if err != nil {
 		log.Println(err)
-		return events, fmt.Errorf(`Unable to query member's event.`)
+		return resp, fmt.Errorf(`Unable to query member's event.`)
 	}
-	events, err = eventservices.MapMultiLineRows(rows)
+	users := MapUserRows(rows)
+	resp.Data = users
+	total, err := getTotalNumberOfUsersInEvent(eId, conn)
 	if err != nil {
-		return events, fmt.Errorf(`unable to map events`)
+		return resp, err
 	}
-	return events, nil
+	resp.Info = structures.Info{
+		Total: total,
+		Count: len(users),
+		Next:  (page*constants.LIMIT < total && len(users) != total),
+	}
+	return resp, nil
+}
+
+func GetEventUserIsMember(userId string, page int, conn *sql.DB) (responses.EventListResponse, error) {
+	var resp responses.EventListResponse
+	var total int
+	uId, err := uuidtransform.StringToUuidTransform(userId)
+	if err != nil {
+		return resp, fmt.Errorf("Failed to be UUID for User: " + userId)
+	}
+	stmt, err := conn.Prepare(queries.GET_EVENTS_LOCATION_INFO_USER_IN)
+	count, err := conn.Prepare(queries.GET_EVENTS_MEMBER_OF_COUNT)
+	defer stmt.Close()
+	defer count.Close()
+	if err != nil {
+		log.Println(err)
+		return resp, fmt.Errorf(`Unable to prepare statement to get user events.`)
+	}
+	rows, err := stmt.Query(uId, util.CalcQueryStart(page), constants.LIMIT)
+	if err != nil {
+		log.Println(err)
+		return resp, fmt.Errorf(`Unable to query member's event.`)
+	}
+	events, err := eventservices.MapMultiLineRows(rows)
+	if err != nil {
+		return resp, fmt.Errorf(`unable to map events`)
+	}
+	err = count.QueryRow(userId).Scan(&total)
+	if err != nil {
+		return resp, fmt.Errorf(`unable to map total`)
+	}
+
+	resp.Data = events
+	resp.Info = structures.Info{
+		Count: len(events),
+		Total: total,
+		Next:  page*constants.LIMIT < total && len(events) != total,
+	}
+	return resp, nil
 }
 
 func getTotalNumberOfEventsUserIsApartOf(userId uuid.UUID, conn *sql.DB) (int, error) {
@@ -91,6 +118,21 @@ func getTotalNumberOfEventsUserIsApartOf(userId uuid.UUID, conn *sql.DB) (int, e
 		return count, fmt.Errorf("Issue Here")
 	}
 	err = stmt.QueryRow(userId).Scan(&count)
+	if err != nil {
+		return count, err
+	}
+	return count, nil
+}
+
+func getTotalNumberOfUsersInEvent(eventId uuid.UUID, conn *sql.DB) (int, error) {
+	var count int
+	stmt, err := conn.Prepare(queries.GET_EVENTS_MEMBERS_COUNT)
+	defer stmt.Close()
+	if err != nil {
+		log.Println(err)
+		return count, fmt.Errorf("Issue Here")
+	}
+	err = stmt.QueryRow(eventId).Scan(&count)
 	if err != nil {
 		return count, err
 	}
