@@ -57,14 +57,6 @@ func GetEvent(id string, conn *sql.DB) (*structures.Event, error) {
 		log.Println(err)
 		return &event, fmt.Errorf("No Event with UUID:" + id)
 	}
-	date, err := time.Parse(time.RFC3339, event.EndTime)
-	if err != nil {
-		return &event, fmt.Errorf(`Issue Parsing date %s`, event.EndTime)
-	}
-	if event.Expired || time.Now().UTC().After(date) {
-		expireEvent(event, conn)
-		return &event, fmt.Errorf("Event has expired.")
-	}
 	return &event, nil
 }
 
@@ -78,22 +70,11 @@ func GetEventsByCity(city string, page int, conn *sql.DB) (responses.EventListRe
 	if err != nil {
 		return response, err
 	}
-	rows, err := stmt.Query(city, util.CalcQueryStart(page), constants.LIMIT)
+	rows, err := stmt.Query(city, time.Now().UTC(), util.CalcQueryStart(page), constants.LIMIT)
 	defer rows.Close()
 	events, err := MapMultiLineRows(rows)
 	if err != nil {
 		return response, getErrorMessage(err, city)
-	}
-	for index, e := range events {
-		date, err := time.Parse(time.RFC3339, e.EndTime)
-		if err != nil {
-			log.Println(`Issue Parsing date ` + e.EndTime)
-		}
-		if time.Now().UTC().After(date) {
-			expireEvent(e, conn)
-			events[index] = events[len(events)-1]
-			events = events[:len(events)-1]
-		}
 	}
 	total, err := getTotalCountOfEventsInCity(city, conn)
 	if err != nil {
@@ -119,7 +100,7 @@ func AddUserToEvent(code string, userId string, eventId string, cords structures
 	if err != nil {
 		return false, fmt.Errorf("Failed to be UUID for User: " + userId)
 	}
-	event, err := mapSingleRowQuery(conn.QueryRow(queries.GET_EVENT_BY_ID_AND_LOCATION_INFO, eventId))
+	event, err := mapSingleRowQuery(conn.QueryRow(queries.GET_EVENT_BY_ID_AND_LOCATION_INFO, eventId, time.Now().UTC()))
 	if err != nil {
 		log.Println(err)
 		return false, getErrorMessage(err, eventId)
@@ -133,14 +114,11 @@ func AddUserToEvent(code string, userId string, eventId string, cords structures
 		structures.Point{Latitude: event.LocationInfo.TopRightLat, Longitude: event.LocationInfo.TopRightLon},
 		structures.Point{Latitude: event.LocationInfo.BottomLeftLat, Longitude: event.LocationInfo.BottomLeftLon},
 		structures.Point{Latitude: event.LocationInfo.BottomRightLat, Longitude: event.LocationInfo.BottomRightLon}) {
-		if event.Expired {
-			return false, fmt.Errorf("Event has expired.")
-		}
 		if event.IsPublic || (!event.IsPublic && string(decodedCode) == code) {
 			return addUserToEvent(uId, eId, conn)
 		}
 	}
-	return false, fmt.Errorf("Cannot add user to event")
+	return false, nil
 
 }
 
@@ -227,13 +205,6 @@ func insertEventIntoDb(eventInfo structures.Event, lId uuid.UUID, conn *sql.Tx) 
 	return true, nil
 }
 
-func expireEvent(event structures.Event, conn *sql.DB) {
-	_, err := conn.Exec(queries.EXPIRE_EVENT, event.Id)
-	if err != nil {
-		log.Println(`Issue expiring event with UUID: `, event.Id)
-	}
-}
-
 func getTotalCountOfEventsInCity(city string, conn *sql.DB) (int, error) {
 	stmt, err := conn.Prepare(queries.GET_EVENT_BY_CITY_AND_LOCATION_INFO_COUNT)
 	var count int
@@ -243,7 +214,7 @@ func getTotalCountOfEventsInCity(city string, conn *sql.DB) (int, error) {
 		log.Println("Issue formating query for total number of events in city: " + city)
 		return count, err
 	}
-	err = stmt.QueryRow(city).Scan(&count)
+	err = stmt.QueryRow(city, time.Now().UTC()).Scan(&count)
 	if err != nil {
 		log.Println("Issue getting total number of events in city: " + city)
 		return count, err

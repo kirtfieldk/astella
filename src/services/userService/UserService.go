@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"fmt"
 	"log"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/kirtfieldk/astella/src/api/responses"
@@ -23,7 +24,6 @@ func MapUserRows(rows *sql.Rows) []structures.User {
 			&usr.ImgOne, &usr.ImgTwo, &usr.ImgThree); err != nil {
 			log.Println("Issue mapping DB row for user")
 		}
-
 		users = append(users, usr)
 	}
 	return users
@@ -86,7 +86,7 @@ func GetEventUserIsMember(userId string, page int, conn *sql.DB) (responses.Even
 		log.Println(err)
 		return resp, fmt.Errorf(`Unable to prepare statement to get user events.`)
 	}
-	rows, err := stmt.Query(uId, util.CalcQueryStart(page), constants.LIMIT)
+	rows, err := stmt.Query(uId, time.Now().UTC, util.CalcQueryStart(page), constants.LIMIT)
 	if err != nil {
 		log.Println(err)
 		return resp, fmt.Errorf(`Unable to query member's event.`)
@@ -95,7 +95,7 @@ func GetEventUserIsMember(userId string, page int, conn *sql.DB) (responses.Even
 	if err != nil {
 		return resp, fmt.Errorf(`unable to map events`)
 	}
-	err = count.QueryRow(userId).Scan(&total)
+	err = count.QueryRow(userId, time.Now().UTC()).Scan(&total)
 	if err != nil {
 		return resp, fmt.Errorf(`unable to map total`)
 	}
@@ -117,7 +117,7 @@ func getTotalNumberOfEventsUserIsApartOf(userId uuid.UUID, conn *sql.DB) (int, e
 		log.Println(err)
 		return count, fmt.Errorf("Issue Here")
 	}
-	err = stmt.QueryRow(userId).Scan(&count)
+	err = stmt.QueryRow(userId, time.Now().UTC).Scan(&count)
 	if err != nil {
 		return count, err
 	}
@@ -132,7 +132,7 @@ func getTotalNumberOfUsersInEvent(eventId uuid.UUID, conn *sql.DB) (int, error) 
 		log.Println(err)
 		return count, fmt.Errorf("Issue Here")
 	}
-	err = stmt.QueryRow(eventId).Scan(&count)
+	err = stmt.QueryRow(eventId, time.Now().UTC).Scan(&count)
 	if err != nil {
 		return count, err
 	}

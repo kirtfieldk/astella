@@ -62,13 +62,13 @@ func (h *BaseHandler) AddUserToEvent(c *gin.Context) {
 	eventId := c.Param(constants.EVENT_ID)
 	userId := c.Param(constants.USER_ID)
 	if err := c.BindJSON(&requestBody); err != nil {
-		c.IndentedJSON(http.StatusNotFound, gin.H{constants.MESSAGE: constants.CODE_NOT_FOUND})
+		c.IndentedJSON(http.StatusNotFound, gin.H{constants.MESSAGE: false})
 		return
 	}
 	point := structures.Point{Latitude: requestBody.Latitude, Longitude: requestBody.Longitude}
 	success, err := eventservices.AddUserToEvent(requestBody.Code, userId, eventId, point, h.DB)
 	if err != nil || !success {
-		c.IndentedJSON(http.StatusNotFound, gin.H{constants.MESSAGE: err.Error()})
+		c.IndentedJSON(http.StatusNotFound, gin.H{constants.MESSAGE: success})
 		return
 	}
 	c.IndentedJSON(http.StatusOK, gin.H{constants.MESSAGE: success})

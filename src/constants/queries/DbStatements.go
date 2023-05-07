@@ -3,32 +3,32 @@ package queries
 var GET_EVENT_BY_ID_AND_LOCATION_INFO string = `Select e.id, e.event_name, e.created, e.description, e.public, e.code, 
 	l.id, l.top_left_lat, l.top_left_lon, l.top_right_lat, l.top_right_lon, l.bottom_right_lat,l.bottom_right_lon,
 	l.bottom_left_lat, l.bottom_left_lon, l.city, e.expired, e.end_time FROM events e LEFT JOIN locationInfo l ON l.id = e.location_id WHERE e.id = $1
-	and e.expired = false;`
+	and e.end_time >= $2;`
 
 var GET_EVENT_BY_CITY_AND_LOCATION_INFO string = `Select e.id, e.event_name, e.created, e.description, e.public, e.code, 
 	l.id, l.top_left_lat, l.top_left_lon, l.top_right_lat, l.top_right_lon, l.bottom_right_lat,l.bottom_right_lon,
 	l.bottom_left_lat, l.bottom_left_lon, l.city, e.expired, e.end_time FROM events e LEFT JOIN locationInfo l ON l.id = e.location_id WHERE l.city = $1 
-	AND e.expired = false OFFSET $2 LIMIT $3;`
+	AND e.end_time >= $2 OFFSET $3 LIMIT $4;`
 
 var GET_EVENT_BY_CITY_AND_LOCATION_INFO_COUNT string = `Select COUNT(e.id) FROM events e LEFT JOIN 
-	locationInfo l ON l.id = e.location_id WHERE l.city = $1 AND e.expired = false;`
+	locationInfo l ON l.id = e.location_id WHERE l.city = $1 AND e.end_time >= $2;`
 
 var GET_EVENTS_LOCATION_INFO_USER_IN string = `Select e.id, e.event_name, e.created, e.description, e.public, e.code, 
 	l.id, l.top_left_lat, l.top_left_lon, l.top_right_lat, l.top_right_lon, l.bottom_right_lat,l.bottom_right_lon,
 	l.bottom_left_lat, l.bottom_left_lon, l.city, e.expired, e.end_time FROM members m LEFT JOIN events e on m.event_id = e.id
-	LEFT JOIN locationInfo l ON l.id = e.location_id WHERE m.user_id = $1 AND e.expired = false OFFSET $2 LIMIT $3;`
+	LEFT JOIN locationInfo l ON l.id = e.location_id WHERE m.user_id = $1 AND e.end_time >= $2 OFFSET $3 LIMIT $4;`
 
 var GET_EVENTS_MEMBER_OF_COUNT string = `Select COUNT(members.id) FROM members LEFT JOIN events e 
-	ON e.id = members.event_id WHERE user_id = $1 AND e.expired = false;`
+	ON e.id = members.event_id WHERE user_id = $1 AND e.end_time >= $2;`
 
 var GET_EVENT_USERS string = `Select u.id, u.username, u.description, u.created, u.ig, u.twitter, u.tiktok, u.avatar_url, 
 	u.img_one, u.img_two, u.img_three FROM members m LEFT JOIN users u on m.user_id = u.id
 	WHERE m.event_id = $1 OFFSET $2 LIMIT $3;`
 
 var GET_EVENTS_LOCATION_INFO_USER_IN_COUNT string = `Select COUNT(e.id) FROM members m LEFT JOIN events e on m.event_id = e.id
-	WHERE m.user_id = $1 AND e.expired = false;`
+	WHERE m.user_id = $1 AND e.end_time >= $2;`
 var GET_EVENTS_MEMBERS_COUNT string = `Select COUNT(m.id) FROM members m LEFT JOIN events e on m.event_id = e.id
-	WHERE e.id = $1 AND e.expired = false;`
+	WHERE e.id = $1 AND e.end_time >= $2;`
 
 var GET_MESSAGES_IN_EVENT string = `SELECT m.id, m.content, m.created, m.event_id, m.parent_id,  m.upvotes,
 	m.pinned, m.latitude, m.longitude, u.id, u.username, u.description, u.created, u.ig, u.twitter, 
