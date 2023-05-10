@@ -24,12 +24,17 @@ func BuildApi() {
 	router.GET(routes.GET_EVENTS_MEMBER_OF, baseHandler.GeteventsMemberOf)
 	router.GET(routes.GET_EVENTS_MEMBERS, baseHandler.GeteventsMembers)
 	router.GET(routes.GET_MESSAGE_IN_EVENT, baseHandler.GetMessagesInEvent)
+	router.GET(routes.GET_PIN_MESSAGE, baseHandler.GetPinnedMessaged)
+
 	router.POST(routes.CREATE_EVENT, baseHandler.CreateEvent)
+	router.POST(routes.PIN_MESSAGE, baseHandler.PinMessage)
 	router.POST(routes.GET_EVENT_BY_CITY, baseHandler.GetEventByCity)
 	router.POST(routes.ADD_USER_TO_EVENT, baseHandler.AddUserToEvent)
 	router.POST(routes.POST_MESSAGE_TO_EVENT, baseHandler.PostMessageToEvent)
 	router.POST(routes.LIKE_MESSAGE_IN_EVENT, baseHandler.UpvoteMessage)
 	router.POST(routes.GET_USRS_LIKE_MESSAGE, baseHandler.GetUserUpvotes)
+
+	router.DELETE(routes.PIN_MESSAGE, baseHandler.UnpinMessage)
 
 	router.Run("localhost:9000")
 }

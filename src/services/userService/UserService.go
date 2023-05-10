@@ -86,7 +86,7 @@ func GetEventUserIsMember(userId string, page int, conn *sql.DB) (responses.Even
 		log.Println(err)
 		return resp, fmt.Errorf(`Unable to prepare statement to get user events.`)
 	}
-	rows, err := stmt.Query(uId, time.Now().UTC, util.CalcQueryStart(page), constants.LIMIT)
+	rows, err := stmt.Query(uId, time.Now().UTC(), util.CalcQueryStart(page), constants.LIMIT)
 	if err != nil {
 		log.Println(err)
 		return resp, fmt.Errorf(`Unable to query member's event.`)
@@ -117,7 +117,7 @@ func getTotalNumberOfEventsUserIsApartOf(userId uuid.UUID, conn *sql.DB) (int, e
 		log.Println(err)
 		return count, fmt.Errorf("Issue Here")
 	}
-	err = stmt.QueryRow(userId, time.Now().UTC).Scan(&count)
+	err = stmt.QueryRow(userId, time.Now().UTC()).Scan(&count)
 	if err != nil {
 		return count, err
 	}
@@ -132,7 +132,7 @@ func getTotalNumberOfUsersInEvent(eventId uuid.UUID, conn *sql.DB) (int, error) 
 		log.Println(err)
 		return count, fmt.Errorf("Issue Here")
 	}
-	err = stmt.QueryRow(eventId, time.Now().UTC).Scan(&count)
+	err = stmt.QueryRow(eventId, time.Now().UTC()).Scan(&count)
 	if err != nil {
 		return count, err
 	}

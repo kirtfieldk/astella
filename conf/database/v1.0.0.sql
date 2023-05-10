@@ -114,6 +114,20 @@ CREATE TABLE IF NOT EXISTS likes (
     UNIQUE (user_id, message_id)
 );
 
+CREATE TABLE IF NOT EXISTS pinned (
+    id uuid PRIMARY KEY DEFAULT uuid_generate_v4 (), 
+    user_id UUID NOT NULL,
+    message_id UUID NOT NULL,
+    created TIMESTAMP NOT NULL,
+    CONSTRAINT fk_user
+      FOREIGN KEY(user_id) 
+	  REFERENCES users(id),
+    CONSTRAINT fk_message
+        FOREIGN KEY(message_id) 
+        REFERENCES messages(id),
+    UNIQUE (user_id, message_id)
+);
+
 
 -- Dummy data for users table
 INSERT INTO users (username, created, ig, twitter, tiktok)

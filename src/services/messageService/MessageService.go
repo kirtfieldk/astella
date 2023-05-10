@@ -18,37 +18,27 @@ import (
 )
 
 func PostMessage(msg structures.MessageRequestBody, conn *sql.DB) (bool, error) {
-	eventId, err := uuidtransform.StringToUuidTransform(msg.EventId)
+	eventId, userId, err := uuidtransform.ParseTwoIds(msg.EventId, msg.UserId)
 	if err != nil {
 		log.Printf("Failed to be UUID for Event: " + msg.EventId)
 		return false, err
 	}
-	userId, err := uuidtransform.StringToUuidTransform(msg.UserId)
-	if err != nil {
-		print(err)
-		return false, fmt.Errorf("Failed to be UUID for User: " + msg.UserId)
-	}
 	if isRequestInArea(eventId, msg.Latitude, msg.Longitude, conn) && isUserInEvent(userId, eventId, conn) {
-		log.Println("Here")
+		log.Println("HERE IN EVENT")
+
 		return insertMessageIntoDB(msg, conn), nil
 	}
+	log.Printf("User %v is not in event %v\n", msg.UserId, msg.EventId)
 	return false, nil
 
 }
 
 func GetMessagesInEvent(eventId string, userId string, pagination int, conn *sql.DB) (responses.MessageListResponse, error) {
 	var messages responses.MessageListResponse
-	eId, err := uuidtransform.StringToUuidTransform(eventId)
+	eId, uId, err := uuidtransform.ParseTwoIds(eventId, userId)
 	if err != nil {
-		log.Printf("Failed to be UUID for Event: " + eventId)
 		return messages, err
 	}
-	uId, err := uuidtransform.StringToUuidTransform(userId)
-	if err != nil {
-		log.Printf("Failed to be UUID for Event: " + userId)
-		return messages, err
-	}
-
 	if isUserInEvent(uId, eId, conn) {
 		return getMessages(eId, pagination, conn)
 	}
@@ -56,42 +46,30 @@ func GetMessagesInEvent(eventId string, userId string, pagination int, conn *sql
 
 }
 
-func UpvoteMessage(messageId string, userId string, eventId string, cords structures.Point, conn *sql.DB) (bool, error) {
-	eId, err := uuidtransform.StringToUuidTransform(eventId)
+func UpvoteMessage(messageId string, userId string, eventId string, cords structures.Point, conn *sql.DB) (responses.MessageListResponse, error) {
+	var resp responses.MessageListResponse
+	eId, uId, mId, err := uuidtransform.ParseThreeIds(eventId, userId, messageId)
 	if err != nil {
-		log.Printf("Failed to be UUID for Event: " + eventId)
-		return false, err
-	}
-	uId, err := uuidtransform.StringToUuidTransform(userId)
-	if err != nil {
-		log.Printf("Failed to be UUID for User: " + userId)
-		return false, err
-	}
-	mId, err := uuidtransform.StringToUuidTransform(messageId)
-	if err != nil {
-		log.Printf("Failed to be UUID for Message: " + messageId)
-		return false, err
+		return resp, err
 	}
 	if isRequestInArea(eId, cords.Latitude, cords.Longitude, conn) && isUserInEvent(uId, eId, conn) {
-		return upVoteMessage(uId, mId, conn)
+		event, err := upVoteMessage(uId, mId, conn)
+		if err != nil {
+			return resp, err
+		}
+		resp.Data = append(resp.Data, event)
+		resp.Info = structures.Info{Total: 1, Count: 1, Next: false}
+		return resp, nil
 	}
-	return false, fmt.Errorf("User is not in Message Event: ")
+	return resp, fmt.Errorf("User is not in Message Event: ")
 
 }
 
 func GetUserUpvotes(messageId string, userId string, eventId string, cords structures.Point, pagination int, conn *sql.DB) (responses.UserListResponse, error) {
-	eId, err := uuidtransform.StringToUuidTransform(eventId)
 	var userResponse responses.UserListResponse
+	eId, uId, mId, err := uuidtransform.ParseThreeIds(eventId, userId, messageId)
 	if err != nil {
-		return userResponse, fmt.Errorf("Failed to be UUID for Event: " + eventId)
-	}
-	uId, err := uuidtransform.StringToUuidTransform(userId)
-	if err != nil {
-		return userResponse, fmt.Errorf("Failed to be UUID for User: " + userId)
-	}
-	mId, err := uuidtransform.StringToUuidTransform(messageId)
-	if err != nil {
-		return userResponse, fmt.Errorf("Failed to be UUID for Message: " + messageId)
+		return userResponse, err
 	}
 	if isRequestInArea(eId, cords.Latitude, cords.Longitude, conn) && isUserInEvent(uId, eId, conn) {
 		users, err := getUsersUpvoteMessage(mId, pagination, conn)
@@ -114,6 +92,85 @@ func GetUserUpvotes(messageId string, userId string, eventId string, cords struc
 		return userResponse, nil
 	}
 	return userResponse, fmt.Errorf("User is not in Event")
+}
+
+func GetUsersPinnedMessagesInEvent(userId string, eventId string, page int, conn *sql.DB) (responses.MessageListResponse, error) {
+	var resp responses.MessageListResponse
+	var total int
+	eId, uId, err := uuidtransform.ParseTwoIds(eventId, userId)
+	if err != nil {
+		log.Printf("Failed to be UUID for User: " + userId)
+		return resp, err
+	}
+	stmt, err := conn.Prepare(queries.GET_USER_PIN_MSG_IN_EVENT)
+	defer stmt.Close()
+	if err != nil {
+		log.Println(err)
+		return resp, err
+	}
+	rows, err := stmt.Query(uId, eId, util.CalcQueryStart(page), constants.LIMIT)
+	if err != nil {
+		return resp, err
+	}
+	messages := mapRowsToMessages(rows)
+	countStmt, err := conn.Prepare(queries.GET_USER_PIN_MSG_IN_EVENT_COUNT)
+	defer countStmt.Close()
+	err = countStmt.QueryRow(uId, eId).Scan(&total)
+	if err != nil {
+		log.Println(err)
+		return resp, err
+	}
+	resp.Data = messages
+	resp.Info.Total = total
+	resp.Info.Count = len(messages)
+	resp.Info.Next = page*constants.LIMIT < total && len(messages) != total
+	return resp, nil
+}
+
+func PinnMessage(messageId string, userId string, eventId string, conn *sql.DB) (responses.SuccessResponse, error) {
+	var resp = responses.SuccessResponse{Message: false}
+	eId, uId, mId, err := uuidtransform.ParseThreeIds(eventId, userId, messageId)
+	if err != nil {
+		return resp, err
+	}
+	if isUserInEvent(uId, eId, conn) {
+		stmt, err := conn.Prepare(queries.INSERT_PINNED)
+		defer stmt.Close()
+		if err != nil {
+			log.Println(err)
+			return resp, err
+		}
+		_, err = stmt.Exec(&uId, &mId)
+		if err != nil {
+			log.Println(err)
+			return resp, err
+		}
+		resp.Message = true
+	}
+	return resp, nil
+}
+
+func UnpinnMessage(messageId string, userId string, eventId string, conn *sql.DB) (responses.SuccessResponse, error) {
+	var resp = responses.SuccessResponse{Message: false}
+	eId, uId, mId, err := uuidtransform.ParseThreeIds(eventId, userId, messageId)
+	if err != nil {
+		return resp, err
+	}
+	if isUserInEvent(uId, eId, conn) {
+		stmt, err := conn.Prepare(queries.DELETE_PINNED)
+		defer stmt.Close()
+		if err != nil {
+			log.Println(err)
+			return resp, err
+		}
+		_, err = stmt.Exec(&uId, &mId)
+		if err != nil {
+			log.Println(err)
+			return resp, err
+		}
+		resp.Message = true
+	}
+	return resp, nil
 }
 
 func getUsersUpvoteMessage(messageId uuid.UUID, pagination int, conn *sql.DB) ([]structures.User, error) {
@@ -142,10 +199,8 @@ func getErrorMessageForNoMessages(err error, id string) error {
 	return fmt.Errorf("MessagesEventById %s: %v", id, err)
 }
 
-func mapRowsToMessages(rows *sql.Rows) responses.MessageListResponse {
-	var response responses.MessageListResponse
+func mapRowsToMessages(rows *sql.Rows) []structures.Message {
 	var messages []structures.Message = make([]structures.Message, 0)
-	var info structures.Info
 	for rows.Next() {
 		var msg structures.Message
 		var usr structures.User
@@ -163,10 +218,8 @@ func mapRowsToMessages(rows *sql.Rows) responses.MessageListResponse {
 		msg.User = usr
 		messages = append(messages, msg)
 	}
-	info.Count = len(messages)
-	response.Info = info
-	response.Data = messages
-	return response
+
+	return messages
 }
 
 func isRequestInArea(id uuid.UUID, lat float32, long float32, conn *sql.DB) bool {
@@ -179,13 +232,15 @@ func isRequestInArea(id uuid.UUID, lat float32, long float32, conn *sql.DB) bool
 }
 
 func isUserInEvent(userId uuid.UUID, eventId uuid.UUID, conn *sql.DB) bool {
+	var id uuid.UUID
 	stmt, err := conn.Prepare(queries.FIND_IF_USER_IN_EVENT)
 	defer stmt.Close()
 	if err != nil {
 		log.Println("Touble preparing statement for isUserInEvent")
 	}
-	_, err = stmt.Query(userId, eventId)
+	err = stmt.QueryRow(userId, eventId).Scan(&id)
 	if err == sql.ErrNoRows {
+		log.Println("No rpos")
 		return false
 	}
 	return true
@@ -193,14 +248,14 @@ func isUserInEvent(userId uuid.UUID, eventId uuid.UUID, conn *sql.DB) bool {
 
 func insertMessageIntoDB(msg structures.MessageRequestBody, conn *sql.DB) bool {
 	if msg.ParentId != "" {
-		_, err := conn.Exec(queries.INSERT_MESSAGE_WITH_PARENT_ID, &msg.Content, &msg.UserId, time.Now(), &msg.EventId, &msg.ParentId, &msg.Upvotes, &msg.Pinned,
+		_, err := conn.Exec(queries.INSERT_MESSAGE_WITH_PARENT_ID, &msg.Content, &msg.UserId, time.Now().UTC(), &msg.EventId, &msg.ParentId, &msg.Upvotes, &msg.Pinned,
 			&msg.Latitude, &msg.Longitude)
 		if err != nil {
 			log.Println(err)
 			return false
 		}
 	} else {
-		_, err := conn.Exec(queries.INSERT_MESSAGE_WITHOUT_PARENT_ID, &msg.Content, &msg.UserId, time.Now(), &msg.EventId, &msg.Upvotes, &msg.Pinned,
+		_, err := conn.Exec(queries.INSERT_MESSAGE_WITHOUT_PARENT_ID, &msg.Content, &msg.UserId, time.Now().UTC(), &msg.EventId, &msg.Upvotes, &msg.Pinned,
 			&msg.Latitude, &msg.Longitude)
 		if err != nil {
 			log.Println(err)
@@ -212,6 +267,7 @@ func insertMessageIntoDB(msg structures.MessageRequestBody, conn *sql.DB) bool {
 
 func getMessages(eventId uuid.UUID, page int, conn *sql.DB) (responses.MessageListResponse, error) {
 	var response responses.MessageListResponse
+	var messages []structures.Message
 	var total int
 	rows, err := conn.Query(queries.GET_MESSAGES_IN_EVENT, eventId, util.CalcQueryStart(page), constants.LIMIT)
 	defer rows.Close()
@@ -219,41 +275,54 @@ func getMessages(eventId uuid.UUID, page int, conn *sql.DB) (responses.MessageLi
 		log.Println(err)
 		return response, err
 	}
-	response = mapRowsToMessages(rows)
+	log.Println("Hello")
+	messages = mapRowsToMessages(rows)
 	if err = conn.QueryRow(queries.GET_MESSAGES_IN_EVENT_COUNT, eventId).Scan(&total); err != nil {
 		log.Println(err)
 		return response, err
 	}
+	response.Data = messages
 	response.Info.Total = total
+	response.Info.Count = len(messages)
+	response.Info.Next = page*constants.LIMIT < total && len(messages) != total
 
 	return response, nil
 
 }
 
-func upVoteMessage(userId uuid.UUID, messageId uuid.UUID, conn *sql.DB) (bool, error) {
+func upVoteMessage(userId uuid.UUID, messageId uuid.UUID, conn *sql.DB) (structures.Message, error) {
+	var msg structures.Message
+	var usr structures.User
+	var parentId sql.NullString
 	tx, err := conn.Begin()
 	stmt, err := tx.Prepare(queries.INSERT_UPVOTE)
 	defer stmt.Close()
 	if err != nil {
 		log.Println(err)
-		return false, fmt.Errorf(`Issue Preparing Upvote Insert Stmt`)
+		return msg, fmt.Errorf(`Issue Preparing Upvote Insert Stmt`)
 	}
 	if _, err = stmt.Exec(&userId, &messageId, time.Now().UTC()); err != nil {
 		log.Println(err)
-		return false, fmt.Errorf(constants.UNABLE_TO_UPVOTE_FOR_USER, userId)
+		return msg, fmt.Errorf(constants.UNABLE_TO_UPVOTE_FOR_USER, userId)
 	}
 	updateMsgStmt, err := tx.Prepare(queries.UPDATE_MESSAGE_LIKE_INC)
 	defer updateMsgStmt.Close()
 	if err != nil {
-		return false, fmt.Errorf(`Issue Preparing Upvote Stmt`)
+		log.Panicln(err)
+		return msg, fmt.Errorf(`Issue Preparing Upvote Stmt`)
 	}
-	if _, err = updateMsgStmt.Exec(&messageId); err != nil {
+	if err = updateMsgStmt.QueryRow(&messageId).Scan(&msg.Id, &msg.Content, &msg.Created, &msg.EventId, &parentId, &msg.Upvotes, &msg.Pinned, &msg.Latitude, &msg.Longitude,
+		&usr.Id, &usr.Username, &usr.Description, &usr.Created, &usr.Ig, &usr.Twitter, &usr.TikTok, &usr.AvatarUrl,
+		&usr.ImgOne, &usr.ImgTwo, &usr.ImgThree); err != nil {
 		log.Println(err)
-		return false, fmt.Errorf(constants.UNABLE_TO_UPVOTE_FOR_USER, userId)
+		return msg, fmt.Errorf(constants.UNABLE_TO_UPVOTE_FOR_USER, userId)
+	}
+	if &parentId != nil {
+		msg.ParentId = parentId.String
 	}
 	tx.Commit()
-
-	return true, nil
+	msg.User = usr
+	return msg, nil
 }
 
 func downVoteMessage(userId uuid.UUID, messageId uuid.UUID, conn *sql.DB) (bool, error) {

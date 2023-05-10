@@ -114,7 +114,9 @@ func AddUserToEvent(code string, userId string, eventId string, cords structures
 		structures.Point{Latitude: event.LocationInfo.TopRightLat, Longitude: event.LocationInfo.TopRightLon},
 		structures.Point{Latitude: event.LocationInfo.BottomLeftLat, Longitude: event.LocationInfo.BottomLeftLon},
 		structures.Point{Latitude: event.LocationInfo.BottomRightLat, Longitude: event.LocationInfo.BottomRightLon}) {
+		log.Println("HERE")
 		if event.IsPublic || (!event.IsPublic && string(decodedCode) == code) {
+			log.Println("HERE")
 			return addUserToEvent(uId, eId, conn)
 		}
 	}
@@ -179,8 +181,9 @@ func getErrorMessage(err error, id string) error {
 }
 
 func addUserToEvent(userId uuid.UUID, eventId uuid.UUID, conn *sql.DB) (bool, error) {
-	_, err := conn.Exec("INSERT INTO members (user_id, event_id, created) values ($1, $2, $3)", userId, eventId, time.Now())
+	_, err := conn.Exec("INSERT INTO members (user_id, event_id, created) values ($1, $2, $3)", userId, eventId, time.Now().UTC())
 	if err != nil {
+		log.Println(err)
 		return false, err
 	}
 	return true, nil

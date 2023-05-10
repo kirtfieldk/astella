@@ -1,6 +1,7 @@
 package api
 
 import (
+	"log"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -18,11 +19,18 @@ func (h *BaseHandler) PostMessageToEvent(c *gin.Context) {
 	}
 
 	success, err := messageservice.PostMessage(msg, h.DB)
+	log.Println(success)
 	if err != nil {
 		c.IndentedJSON(http.StatusBadRequest, gin.H{constants.MESSAGE: err.Error()})
 		return
 	}
-	c.IndentedJSON(http.StatusAccepted, gin.H{constants.MESSAGE: success})
+	messagesResp, err := messageservice.GetMessagesInEvent(msg.EventId, msg.UserId, 0, h.DB)
+	if err != nil {
+		c.IndentedJSON(http.StatusBadRequest, gin.H{constants.MESSAGE: err.Error()})
+		return
+	}
+	messagesResp.Success = success
+	c.IndentedJSON(http.StatusAccepted, messagesResp)
 }
 
 func (h *BaseHandler) GetMessagesInEvent(c *gin.Context) {
@@ -31,6 +39,7 @@ func (h *BaseHandler) GetMessagesInEvent(c *gin.Context) {
 	pagination := util.GetPageFromUrlQuery(c)
 	msg, err := messageservice.GetMessagesInEvent(eventId, userId, pagination, h.DB)
 	if err != nil {
+		print(err)
 		c.IndentedJSON(http.StatusBadRequest, gin.H{constants.MESSAGE: err.Error()})
 		return
 	}
@@ -46,12 +55,12 @@ func (h *BaseHandler) UpvoteMessage(c *gin.Context) {
 		c.IndentedJSON(http.StatusNotFound, gin.H{constants.MESSAGE: constants.PAYLOAD_IS_NOT_LOCATION})
 		return
 	}
-	success, err := messageservice.UpvoteMessage(messageId, userId, eventId, point, h.DB)
+	message, err := messageservice.UpvoteMessage(messageId, userId, eventId, point, h.DB)
 	if err != nil {
 		c.IndentedJSON(http.StatusBadRequest, gin.H{constants.MESSAGE: err.Error()})
 		return
 	}
-	c.IndentedJSON(http.StatusCreated, gin.H{constants.MESSAGE: success})
+	c.IndentedJSON(http.StatusCreated, message)
 }
 
 func (h *BaseHandler) GetUserUpvotes(c *gin.Context) {
@@ -71,4 +80,40 @@ func (h *BaseHandler) GetUserUpvotes(c *gin.Context) {
 		return
 	}
 	c.IndentedJSON(http.StatusAccepted, users)
+}
+
+func (h *BaseHandler) PinMessage(c *gin.Context) {
+	eventId := c.Param(constants.EVENT_ID)
+	userId := c.Param(constants.USER_ID)
+	messageId := c.Param(constants.MESSAGE_ID)
+	success, err := messageservice.PinnMessage(messageId, userId, eventId, h.DB)
+	if err != nil {
+		c.IndentedJSON(http.StatusNotFound, gin.H{constants.MESSAGE: err.Error()})
+		return
+	}
+	c.IndentedJSON(http.StatusAccepted, success)
+}
+
+func (h *BaseHandler) UnpinMessage(c *gin.Context) {
+	eventId := c.Param(constants.EVENT_ID)
+	userId := c.Param(constants.USER_ID)
+	messageId := c.Param(constants.MESSAGE_ID)
+	success, err := messageservice.UnpinnMessage(messageId, userId, eventId, h.DB)
+	if err != nil {
+		c.IndentedJSON(http.StatusNotFound, gin.H{constants.MESSAGE: err.Error()})
+		return
+	}
+	c.IndentedJSON(http.StatusAccepted, success)
+}
+
+func (h *BaseHandler) GetPinnedMessaged(c *gin.Context) {
+	eventId := c.Param(constants.EVENT_ID)
+	userId := c.Param(constants.USER_ID)
+	pagination := util.GetPageFromUrlQuery(c)
+	messages, err := messageservice.GetUsersPinnedMessagesInEvent(userId, eventId, pagination, h.DB)
+	if err != nil {
+		c.IndentedJSON(http.StatusBadRequest, gin.H{constants.MESSAGE: err.Error()})
+		return
+	}
+	c.IndentedJSON(http.StatusCreated, messages)
 }
