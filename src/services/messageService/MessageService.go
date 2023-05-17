@@ -40,7 +40,13 @@ func GetMessagesInEvent(eventId string, userId string, pagination int, conn *sql
 		return messages, err
 	}
 	if isUserInEvent(uId, eId, conn) {
-		return getMessages(eId, pagination, conn)
+		messages, err = getMessages(eId, pagination, conn)
+		if err != nil {
+			return messages, err
+		}
+		populateMsgPinnedByUser(messages.Data, uId, conn)
+		populateMsgLikedByUser(messages.Data, uId, conn)
+		return messages, nil
 	}
 	return messages, fmt.Errorf("User is not in Event")
 
@@ -53,25 +59,88 @@ func UpvoteMessage(messageId string, userId string, eventId string, cords struct
 		return resp, err
 	}
 	if isRequestInArea(eId, cords.Latitude, cords.Longitude, conn) && isUserInEvent(uId, eId, conn) {
-		event, err := upVoteMessage(uId, mId, conn)
+		msg, err := upVoteMessage(uId, mId, conn)
+		if err != nil {
+			return resp, err
+		}
+		resp.Data = append(resp.Data, msg)
+		populateMsgPinnedByUser(resp.Data, uId, conn)
+		populateMsgLikedByUser(resp.Data, uId, conn)
+		resp.Info = structures.Info{Total: 1, Count: 1, Next: false}
+		return resp, nil
+	}
+	return resp, fmt.Errorf("User is not in Message Event: ")
+}
+
+func DownVoteMessage(messageId string, userId string, eventId string, cords structures.Point, conn *sql.DB) (responses.MessageListResponse, error) {
+	var resp responses.MessageListResponse
+	eId, uId, mId, err := uuidtransform.ParseThreeIds(eventId, userId, messageId)
+	if err != nil {
+		return resp, err
+	}
+	if isRequestInArea(eId, cords.Latitude, cords.Longitude, conn) && isUserInEvent(uId, eId, conn) {
+		event, err := downVoteMessage(uId, mId, conn)
 		if err != nil {
 			return resp, err
 		}
 		resp.Data = append(resp.Data, event)
 		resp.Info = structures.Info{Total: 1, Count: 1, Next: false}
+		populateMsgPinnedByUser(resp.Data, uId, conn)
+		populateMsgLikedByUser(resp.Data, uId, conn)
 		return resp, nil
 	}
 	return resp, fmt.Errorf("User is not in Message Event: ")
-
 }
 
-func GetUserUpvotes(messageId string, userId string, eventId string, cords structures.Point, pagination int, conn *sql.DB) (responses.UserListResponse, error) {
+func GetMessageThread(messageId string, userId string, eventId string, page int, conn *sql.DB) (responses.MessageListResponse, error) {
+	var resp responses.MessageListResponse
+	var ct int
+	mId, uId, eId, err := uuidtransform.ParseThreeIds(messageId, userId, eventId)
+	if err != nil {
+		return resp, err
+	}
+	if isUserInEvent(uId, eId, conn) {
+		log.Println(mId)
+		stmt, err := conn.Prepare(queries.GET_MESSAGE_THREAD)
+		defer stmt.Close()
+		if err != nil {
+			log.Println(err)
+			return resp, err
+		}
+		count, err := conn.Prepare(queries.GET_MESSAGE_THREAD_COUNT)
+		defer count.Close()
+		if err != nil {
+			return resp, err
+		}
+		rows, err := stmt.Query(mId, constants.LIMIT, util.CalcQueryStart(page))
+		if err != nil {
+			log.Println(err)
+			return resp, err
+		}
+		if err = count.QueryRow(&mId).Scan(&ct); err != nil {
+			return resp, err
+		}
+
+		messages := mapRowsToMessages(rows)
+		populateMsgLikedByUser(messages, uId, conn)
+		populateMsgPinnedByUser(messages, uId, conn)
+		resp.Data = messages
+		resp.Info.Count = len(messages)
+		resp.Info.Total = ct
+		resp.Info.Page = page
+		resp.Info.Next = page*constants.LIMIT < ct && len(messages) != ct
+		return resp, nil
+	}
+	return resp, fmt.Errorf("User not a member of event")
+}
+
+func GetUserUpvotes(messageId string, userId string, eventId string, pagination int, conn *sql.DB) (responses.UserListResponse, error) {
 	var userResponse responses.UserListResponse
 	eId, uId, mId, err := uuidtransform.ParseThreeIds(eventId, userId, messageId)
 	if err != nil {
 		return userResponse, err
 	}
-	if isRequestInArea(eId, cords.Latitude, cords.Longitude, conn) && isUserInEvent(uId, eId, conn) {
+	if isUserInEvent(uId, eId, conn) {
 		users, err := getUsersUpvoteMessage(mId, pagination, conn)
 		if err != nil {
 			return userResponse, err
@@ -120,6 +189,8 @@ func GetUsersPinnedMessagesInEvent(userId string, eventId string, page int, conn
 		log.Println(err)
 		return resp, err
 	}
+	populateMsgPinnedByUser(messages, uId, conn)
+	populateMsgLikedByUser(messages, uId, conn)
 	resp.Data = messages
 	resp.Info.Total = total
 	resp.Info.Count = len(messages)
@@ -127,8 +198,8 @@ func GetUsersPinnedMessagesInEvent(userId string, eventId string, page int, conn
 	return resp, nil
 }
 
-func PinnMessage(messageId string, userId string, eventId string, conn *sql.DB) (responses.SuccessResponse, error) {
-	var resp = responses.SuccessResponse{Message: false}
+func PinnMessage(messageId string, userId string, eventId string, conn *sql.DB) (responses.MessageListResponse, error) {
+	var resp responses.MessageListResponse
 	eId, uId, mId, err := uuidtransform.ParseThreeIds(eventId, userId, messageId)
 	if err != nil {
 		return resp, err
@@ -140,18 +211,28 @@ func PinnMessage(messageId string, userId string, eventId string, conn *sql.DB) 
 			log.Println(err)
 			return resp, err
 		}
-		_, err = stmt.Exec(&uId, &mId)
+		_, err = stmt.Exec(&uId, &mId, time.Now().UTC())
 		if err != nil {
 			log.Println(err)
 			return resp, err
 		}
-		resp.Message = true
+		messages, err := getMessage(mId, conn)
+		if err != nil {
+			log.Println(err)
+			return resp, nil
+		}
+		populateMsgLikedByUser(messages, uId, conn)
+		populateMsgPinnedByUser(messages, uId, conn)
+		resp.Data = messages
+		resp.Info.Count = 1
+		resp.Info.Total = 1
+		resp.Info.Next = false
 	}
 	return resp, nil
 }
 
-func UnpinnMessage(messageId string, userId string, eventId string, conn *sql.DB) (responses.SuccessResponse, error) {
-	var resp = responses.SuccessResponse{Message: false}
+func UnpinnMessage(messageId string, userId string, eventId string, conn *sql.DB) (responses.MessageListResponse, error) {
+	var resp responses.MessageListResponse
 	eId, uId, mId, err := uuidtransform.ParseThreeIds(eventId, userId, messageId)
 	if err != nil {
 		return resp, err
@@ -168,9 +249,32 @@ func UnpinnMessage(messageId string, userId string, eventId string, conn *sql.DB
 			log.Println(err)
 			return resp, err
 		}
-		resp.Message = true
+		messages, err := getMessage(mId, conn)
+		if err != nil {
+			log.Println(err)
+			return resp, nil
+		}
+		populateMsgLikedByUser(messages, uId, conn)
+		populateMsgPinnedByUser(messages, uId, conn)
+		resp.Data = messages
+		resp.Info.Count = 1
+		resp.Info.Total = 1
+		resp.Info.Next = false
 	}
 	return resp, nil
+}
+
+func getMessage(messageId uuid.UUID, conn *sql.DB) ([]structures.Message, error) {
+	var msg []structures.Message
+	stmt, err := conn.Prepare(queries.GET_MESSAGES)
+	if err != nil {
+		return msg, err
+	}
+	rows, err := stmt.Query(messageId)
+	if err != nil {
+		return msg, err
+	}
+	return mapRowsToMessages(rows), nil
 }
 
 func getUsersUpvoteMessage(messageId uuid.UUID, pagination int, conn *sql.DB) ([]structures.User, error) {
@@ -248,6 +352,7 @@ func isUserInEvent(userId uuid.UUID, eventId uuid.UUID, conn *sql.DB) bool {
 
 func insertMessageIntoDB(msg structures.MessageRequestBody, conn *sql.DB) bool {
 	if msg.ParentId != "" {
+		log.Println(msg.ParentId)
 		_, err := conn.Exec(queries.INSERT_MESSAGE_WITH_PARENT_ID, &msg.Content, &msg.UserId, time.Now().UTC(), &msg.EventId, &msg.ParentId, &msg.Upvotes, &msg.Pinned,
 			&msg.Latitude, &msg.Longitude)
 		if err != nil {
@@ -275,7 +380,6 @@ func getMessages(eventId uuid.UUID, page int, conn *sql.DB) (responses.MessageLi
 		log.Println(err)
 		return response, err
 	}
-	log.Println("Hello")
 	messages = mapRowsToMessages(rows)
 	if err = conn.QueryRow(queries.GET_MESSAGES_IN_EVENT_COUNT, eventId).Scan(&total); err != nil {
 		log.Println(err)
@@ -325,27 +429,73 @@ func upVoteMessage(userId uuid.UUID, messageId uuid.UUID, conn *sql.DB) (structu
 	return msg, nil
 }
 
-func downVoteMessage(userId uuid.UUID, messageId uuid.UUID, conn *sql.DB) (bool, error) {
+func downVoteMessage(userId uuid.UUID, messageId uuid.UUID, conn *sql.DB) (structures.Message, error) {
+	var msg structures.Message
+	var usr structures.User
+	var parentId sql.NullString
+
 	tx, err := conn.Begin()
 	stmt, err := tx.Prepare(queries.DELETE_UPVOTE)
 	defer stmt.Close()
 	if err != nil {
-		return false, fmt.Errorf(`Issue Preparing Upvote Delete Stmt`)
+		log.Println(err)
+		return msg, fmt.Errorf(`Issue Preparing Upvote Delete Stmt`)
 	}
 	if _, err = stmt.Exec(&userId, &messageId); err != nil {
 		log.Println(err)
-		return false, fmt.Errorf(constants.UNABLE_TO_UPVOTE_FOR_USER, userId)
+		return msg, fmt.Errorf(constants.UNABLE_TO_UPVOTE_FOR_USER, userId)
 	}
 	updateMsgStmt, err := tx.Prepare(queries.UPDATE_MESSAGE_LIKE_DEC)
 	defer updateMsgStmt.Close()
 	if err != nil {
-		return false, fmt.Errorf(`Issue Preparing DownVote Stmt`)
-	}
-	if _, err = updateMsgStmt.Exec(&messageId); err != nil {
 		log.Println(err)
-		return false, fmt.Errorf(constants.UNABLE_TO_UPVOTE_FOR_USER, userId)
+		return msg, fmt.Errorf(`Issue Preparing DownVote Stmt`)
+	}
+	if err = updateMsgStmt.QueryRow(&messageId).Scan(&msg.Id, &msg.Content, &msg.Created, &msg.EventId, &parentId, &msg.Upvotes, &msg.Pinned, &msg.Latitude, &msg.Longitude,
+		&usr.Id, &usr.Username, &usr.Description, &usr.Created, &usr.Ig, &usr.Twitter, &usr.TikTok, &usr.AvatarUrl,
+		&usr.ImgOne, &usr.ImgTwo, &usr.ImgThree); err != nil {
+		log.Println(err)
+		return msg, fmt.Errorf(constants.UNABLE_TO_UPVOTE_FOR_USER, userId)
+	}
+	if &parentId != nil {
+		msg.ParentId = parentId.String
 	}
 	tx.Commit()
+	msg.User = usr
+	return msg, nil
+}
 
-	return true, nil
+func populateMsgPinnedByUser(messages []structures.Message, userId uuid.UUID, conn *sql.DB) {
+	stmt, err := conn.Prepare(queries.GET_USER_SINGLE_PIN_MSG_IN_EVENT)
+	defer stmt.Close()
+	if err != nil {
+		return
+	}
+	for i := 0; i < len(messages); i++ {
+		var ct int
+		stmt.QueryRow(&userId, &messages[i].Id).Scan(&ct)
+		if ct == 1 {
+			messages[i].PinnedByUser = true
+		} else {
+			messages[i].PinnedByUser = false
+		}
+	}
+}
+
+func populateMsgLikedByUser(messages []structures.Message, userId uuid.UUID, conn *sql.DB) {
+	stmt, err := conn.Prepare(queries.GET_USER_SINGLE_LIKE_MSG_IN_EVENT)
+	defer stmt.Close()
+	if err != nil {
+		return
+	}
+	for i := 0; i < len(messages); i++ {
+		var ct int
+		stmt.QueryRow(&userId, &messages[i].Id).Scan(&ct)
+		if ct == 1 {
+			messages[i].UpvotedByUser = true
+		} else {
+			messages[i].UpvotedByUser = false
+		}
+	}
+
 }

@@ -40,18 +40,19 @@ func CreatePoint(lat float32, long float32) structures.Point {
 	return structures.Point{Latitude: lat, Longitude: long}
 }
 
-func CreateLocationInfo(locationInfo structures.LocationInfo, tx *sql.Tx) (uuid.UUID, error) {
+func CreateLocationInfo(locationInfo structures.LocationInfo, tx *sql.Tx) (structures.LocationInfo, error) {
 	var id uuid.UUID
 	stmt, err := tx.Prepare(queries.INSERT_LOCATION_INTO_DB_RETURN_ID)
 	if err != nil {
 		log.Println(err)
-		return id, fmt.Errorf("Error preparing insert location stmt")
+		return locationInfo, fmt.Errorf("Error preparing insert location stmt")
 	}
 	defer stmt.Close()
 	err = stmt.QueryRow(&locationInfo.TopLeftLat, &locationInfo.TopLeftLon, &locationInfo.TopRightLat, &locationInfo.TopRightLon,
 		&locationInfo.BottomLeftLat, &locationInfo.BottomLeftLon, &locationInfo.BottomRightLat, &locationInfo.BottomRightLon, &locationInfo.City).Scan(&id)
 	if err != nil {
-		return id, fmt.Errorf("Error mapping Id from LocationInfo create stmt")
+		return locationInfo, fmt.Errorf("Error mapping Id from LocationInfo create stmt")
 	}
-	return id, err
+	locationInfo.Id = id.String()
+	return locationInfo, err
 }

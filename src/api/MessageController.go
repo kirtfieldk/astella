@@ -63,18 +63,42 @@ func (h *BaseHandler) UpvoteMessage(c *gin.Context) {
 	c.IndentedJSON(http.StatusCreated, message)
 }
 
-func (h *BaseHandler) GetUserUpvotes(c *gin.Context) {
+func (h *BaseHandler) FetchMessageThread(c *gin.Context) {
+	eventId := c.Param(constants.EVENT_ID)
+	userId := c.Param(constants.USER_ID)
+	messageId := c.Param(constants.MESSAGE_ID)
+	page := util.GetPageFromUrlQuery(c)
+	resp, err := messageservice.GetMessageThread(messageId, userId, eventId, page, h.DB)
+	if err != nil {
+		c.IndentedJSON(http.StatusBadRequest, gin.H{constants.MESSAGE: err.Error()})
+		return
+	}
+	c.IndentedJSON(http.StatusAccepted, resp)
+}
+
+func (h *BaseHandler) DownvoteMessage(c *gin.Context) {
 	var point structures.Point
 	eventId := c.Param(constants.EVENT_ID)
 	userId := c.Param(constants.USER_ID)
 	messageId := c.Param(constants.MESSAGE_ID)
-	pagination := util.GetPageFromUrlQuery(c)
-
 	if err := c.BindJSON(&point); err != nil {
-		c.IndentedJSON(http.StatusBadRequest, gin.H{constants.MESSAGE: constants.PAYLOAD_IS_NOT_LOCATION})
+		c.IndentedJSON(http.StatusNotFound, gin.H{constants.MESSAGE: constants.PAYLOAD_IS_NOT_LOCATION})
 		return
 	}
-	users, err := messageservice.GetUserUpvotes(messageId, userId, eventId, point, pagination, h.DB)
+	message, err := messageservice.DownVoteMessage(messageId, userId, eventId, point, h.DB)
+	if err != nil {
+		c.IndentedJSON(http.StatusBadRequest, gin.H{constants.MESSAGE: err.Error()})
+		return
+	}
+	c.IndentedJSON(http.StatusCreated, message)
+}
+
+func (h *BaseHandler) GetUserUpvotes(c *gin.Context) {
+	eventId := c.Param(constants.EVENT_ID)
+	userId := c.Param(constants.USER_ID)
+	messageId := c.Param(constants.MESSAGE_ID)
+	pagination := util.GetPageFromUrlQuery(c)
+	users, err := messageservice.GetUserUpvotes(messageId, userId, eventId, pagination, h.DB)
 	if err != nil {
 		c.IndentedJSON(http.StatusNotFound, gin.H{constants.MESSAGE: err.Error()})
 		return

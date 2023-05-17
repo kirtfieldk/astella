@@ -19,45 +19,57 @@ import (
 )
 
 // We can easily create events > FIx.
-func CreateEvent(eventInfo structures.Event, conn *sql.DB) (bool, error) {
+func CreateEvent(eventInfo structures.Event, conn *sql.DB) (responses.EventListResponse, error) {
+	var resp responses.EventListResponse
 	tx, err := conn.Begin()
 	if err != nil {
-		return false, err
+		return resp, err
 	}
-
-	locationId, err := locationservice.CreateLocationInfo(eventInfo.LocationInfo, tx)
+	locationInfoDb, err := locationservice.CreateLocationInfo(eventInfo.LocationInfo, tx)
 	if err != nil {
-		return false, err
+		return resp, err
 	}
-	if _, err := insertEventIntoDb(eventInfo, locationId, tx); err != nil {
-		return false, err
+	eventId, err := insertEventIntoDb(eventInfo, locationInfoDb.Id, tx)
+	if err != nil {
+		return resp, err
 	}
 	err = tx.Commit()
 	if err != nil {
-		return false, fmt.Errorf("Error with event transaction %v", err)
+		return resp, fmt.Errorf("Error with event transaction %v", err)
 	}
-	return true, nil
+	event, err := GetEvent(eventId, conn)
+	if err != nil {
+		return resp, err
+	}
+	resp.Data = append(resp.Data, event)
+	resp.Info.Count = 1
+	resp.Info.Total = 1
+	resp.Info.Page = 0
+	resp.Info.Next = false
+
+	return resp, nil
 }
 
-func GetEvent(id string, conn *sql.DB) (*structures.Event, error) {
+func GetEvent(id string, conn *sql.DB) (structures.Event, error) {
+	var event structures.Event
 	uuidInUrl, err := uuid.ParseBytes([]byte(id))
 	if err != nil {
-		return nil, err
+		return event, err
 	}
 
 	stmt, err := conn.Prepare(queries.GET_EVENT_BY_ID_AND_LOCATION_INFO)
 	defer stmt.Close()
 	if err != nil {
-		return nil, err
+		return event, err
 	}
-	row := stmt.QueryRow(uuidInUrl)
+	row := stmt.QueryRow(uuidInUrl, time.Now().UTC())
 
-	event, err := mapSingleRowQuery(row)
+	event, err = mapSingleRowQuery(row)
 	if err != nil {
 		log.Println(err)
-		return &event, fmt.Errorf("No Event with UUID:" + id)
+		return event, fmt.Errorf("No Event with UUID:" + id)
 	}
-	return &event, nil
+	return event, nil
 }
 
 func GetEventsByCity(city string, page int, conn *sql.DB) (responses.EventListResponse, error) {
@@ -190,22 +202,24 @@ func addUserToEvent(userId uuid.UUID, eventId uuid.UUID, conn *sql.DB) (bool, er
 }
 
 // We can easily create events > FIx.
-func insertEventIntoDb(eventInfo structures.Event, lId uuid.UUID, conn *sql.Tx) (bool, error) {
+func insertEventIntoDb(eventInfo structures.Event, lId string, conn *sql.Tx) (string, error) {
+	var id string
 	encodedCode := b64.StdEncoding.EncodeToString([]byte(eventInfo.Code))
 	stmt, err := conn.Prepare(queries.INSERT_EVENT_INTO_DB)
 	defer stmt.Close()
 	if err != nil {
-		return false, err
+		return id, err
 	}
-	log.Println(lId)
-	_, err = stmt.Exec(&eventInfo.Name, time.Now().UTC(), &eventInfo.Description,
+	err = stmt.QueryRow(&eventInfo.Name, time.Now().UTC(), &eventInfo.Description,
 		&eventInfo.IsPublic, &encodedCode, &lId, &eventInfo.Duration,
-		time.Now().UTC().Add(time.Hour*time.Duration(eventInfo.Duration)), false)
+		time.Now().UTC().Add(time.Hour*time.Duration(eventInfo.Duration)), false).Scan(&id)
 	if err != nil {
-		log.Println(err)
-		return false, fmt.Errorf("Unable to create event %v", err)
+		return id, fmt.Errorf("Unable to create event %v", err)
 	}
-	return true, nil
+	if err != nil {
+		return id, fmt.Errorf("Unable to fetch event")
+	}
+	return id, nil
 }
 
 func getTotalCountOfEventsInCity(city string, conn *sql.DB) (int, error) {

@@ -49,12 +49,12 @@ func (h *BaseHandler) CreateEvent(c *gin.Context) {
 		c.IndentedJSON(http.StatusNotFound, gin.H{constants.MESSAGE: "Missing fields for event"})
 		return
 	}
-	success, err := eventservices.CreateEvent(event, h.DB)
+	resp, err := eventservices.CreateEvent(event, h.DB)
 	if err != nil {
 		c.IndentedJSON(http.StatusBadRequest, gin.H{constants.MESSAGE: err.Error()})
 		return
 	}
-	c.IndentedJSON(http.StatusAccepted, gin.H{constants.MESSAGE: success})
+	c.IndentedJSON(http.StatusAccepted, resp)
 }
 
 func (h *BaseHandler) AddUserToEvent(c *gin.Context) {
