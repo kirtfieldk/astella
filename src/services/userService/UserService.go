@@ -29,15 +29,26 @@ func MapUserRows(rows *sql.Rows) []structures.User {
 	return users
 }
 
-func UpdateUserProfile(user structures.User, conn *sql.DB) (bool, error) {
-	_, err := conn.Exec(`UPDATE users SET username = $1, ig = $2, twitter = $3, toktok = $4, avatar_url = $5, 
-		img_one = $5, img_two = $7, img_three = $8, description = $9 WHERE id = $10`, &user.Username,
-		&user.Ig, &user.Twitter, &user.TikTok, &user.AvatarUrl, &user.ImgOne, &user.ImgTwo, &user.ImgThree, &user.Description)
+func UpdateUserProfile(user structures.User, conn *sql.DB) (responses.UserListResponse, error) {
+	var resp responses.UserListResponse
+	stmt, err := conn.Prepare(queries.UPDATE_USER)
+	defer stmt.Close()
 	if err != nil {
-		log.Panicln(err)
-		return false, fmt.Errorf("Cannot Update User: " + user.Id)
+		log.Println(err)
+		return resp, fmt.Errorf("Cannot Update User: %v", user.Id)
 	}
-	return true, nil
+	_, err = stmt.Exec(&user.Username, &user.Ig, &user.Twitter, &user.TikTok, &user.AvatarUrl,
+		&user.ImgOne, &user.ImgTwo, &user.ImgThree, &user.Description)
+	if err != nil {
+		log.Println(err)
+		return resp, err
+	}
+	resp.Data = append(resp.Data, user)
+	resp.Info.Count = 1
+	resp.Info.Total = 1
+	resp.Info.Next = false
+	resp.Info.Page = 0
+	return resp, nil
 }
 
 func GetEventMembers(eventId string, page int, conn *sql.DB) (responses.UserListResponse, error) {

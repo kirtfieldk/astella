@@ -108,3 +108,6 @@ const GET_MESSAGE_THREAD string = `SELECT m.id, m.content, m.created, m.event_id
 	u.tiktok, u.avatar_url, u.img_one, u.img_two, u.img_three FROM messages m LEFT JOIN users u ON m.user_id = u.id 
 	WHERE m.parent_id = $1 OFFSET $3 LIMIT $2; `
 const GET_MESSAGE_THREAD_COUNT string = `SELECT COUNT(id) FROM messages WHERE parent_id = $1; `
+
+const UPDATE_USER string = `UPDATE users SET username = $1, ig = $2, twitter = $3, toktok = $4, avatar_url = $5, 
+		img_one = $5, img_two = $7, img_three = $8, description = $9 WHERE id = $10`

@@ -38,6 +38,8 @@ func BuildApi() {
 	router.DELETE(routes.UNPIN_MESSAGE, baseHandler.UnpinMessage)
 	router.DELETE(routes.UNLIKE_MESSAGE_IN_EVENT, baseHandler.DownvoteMessage)
 
+	router.PUT(routes.UPDATE_USER, baseHandler.UpdateUser)
+
 	router.Run("localhost:9000")
 }
 func requestIdMiddleware() gin.HandlerFunc {
