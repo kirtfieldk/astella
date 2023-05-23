@@ -1,7 +1,6 @@
 package api
 
 import (
-	"log"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -17,9 +16,7 @@ func (h *BaseHandler) PostMessageToEvent(c *gin.Context) {
 		c.IndentedJSON(http.StatusNotFound, gin.H{constants.MESSAGE: constants.PAYLOAD_IS_NOT_MSG})
 		return
 	}
-
 	success, err := messageservice.PostMessage(msg, h.DB)
-	log.Println(success)
 	if err != nil {
 		c.IndentedJSON(http.StatusBadRequest, gin.H{constants.MESSAGE: err.Error()})
 		return

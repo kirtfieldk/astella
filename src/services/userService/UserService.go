@@ -29,16 +29,28 @@ func MapUserRows(rows *sql.Rows) []structures.User {
 	return users
 }
 
-func UpdateUserProfile(user structures.User, conn *sql.DB) (responses.UserListResponse, error) {
+func UpdateUserProfile(user structures.User, updatedImages [3]string, conn *sql.DB) (responses.UserListResponse, error) {
 	var resp responses.UserListResponse
+	for i, el := range updatedImages {
+		if el != "" {
+			switch i {
+			case 0:
+				user.ImgOne = el
+			case 1:
+				user.ImgTwo = el
+			case 3:
+				user.ImgThree = el
+			}
+		}
+	}
 	stmt, err := conn.Prepare(queries.UPDATE_USER)
 	defer stmt.Close()
 	if err != nil {
 		log.Println(err)
 		return resp, fmt.Errorf("Cannot Update User: %v", user.Id)
 	}
-	_, err = stmt.Exec(&user.Username, &user.Ig, &user.Twitter, &user.TikTok, &user.AvatarUrl,
-		&user.ImgOne, &user.ImgTwo, &user.ImgThree, &user.Description)
+	_, err = stmt.Exec(&user.Ig, &user.Twitter, &user.TikTok, &user.AvatarUrl,
+		&user.ImgOne, &user.ImgTwo, &user.ImgThree, &user.Description, &user.Id)
 	if err != nil {
 		log.Println(err)
 		return resp, err

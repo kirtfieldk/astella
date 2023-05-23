@@ -1,10 +1,11 @@
 package main
 
 import (
-	"github.com/kirtfieldk/astella/src/util/bind"
+	"github.com/kirtfieldk/astella/src/structures/conf"
 )
 
 func main() {
-	bind.BuildApi()
-
+	var c conf.Conf
+	c.GetConf()
+	c.BuildApi()
 }
