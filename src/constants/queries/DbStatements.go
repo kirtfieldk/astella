@@ -98,8 +98,10 @@ const GET_USER_PIN_MSG_IN_EVENT_COUNT string = `SELECT
 	COUNT(p.id)
 	FROM pinned p LEFT JOIN messages m on p.message_id = m.id LEFT JOIN users u
 	on u.id = m.user_id WHERE p.user_id = $1 and m.event_id = $2;`
+
 const GET_USER_SINGLE_PIN_MSG_IN_EVENT string = `SELECT 
 	COUNT(p.id) FROM pinned p WHERE p.user_id = $1 and p.message_id = $2;`
+
 const GET_USER_SINGLE_LIKE_MSG_IN_EVENT string = `SELECT 
 	COUNT(l.id) FROM likes l WHERE l.user_id = $1 and l.message_id = $2;`
 
@@ -107,7 +109,11 @@ const GET_MESSAGE_THREAD string = `SELECT m.id, m.content, m.created, m.event_id
 	m.pinned, m.latitude, m.longitude, u.id, u.username, u.description, u.created, u.ig, u.twitter, 
 	u.tiktok, u.avatar_url, u.img_one, u.img_two, u.img_three FROM messages m LEFT JOIN users u ON m.user_id = u.id 
 	WHERE m.parent_id = $1 OFFSET $3 LIMIT $2; `
+
 const GET_MESSAGE_THREAD_COUNT string = `SELECT COUNT(id) FROM messages WHERE parent_id = $1; `
 
 const UPDATE_USER string = `UPDATE users SET ig = $1, twitter = $2, tiktok = $3, avatar_url = $4, 
 		img_one = $5, img_two = $6, img_three = $7, description = $8 WHERE id = $9`
+
+const GET_USER string = `SELECT id, username, description, created, ig, twitter, tiktok, avatar_url, img_one, img_two, img_three
+	FROM users where id = $1`

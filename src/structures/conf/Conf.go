@@ -1,15 +1,14 @@
 package conf
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"io/ioutil"
 	"log"
 
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/credentials"
-	"github.com/aws/aws-sdk-go/aws/session"
-	"github.com/aws/aws-sdk-go/service/s3"
+	"github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/gin-gonic/gin"
 	"github.com/kirtfieldk/astella/src/api"
 	"github.com/kirtfieldk/astella/src/constants/routes"
@@ -30,6 +29,7 @@ func (c *Conf) GetConf() *Conf {
 	if err != nil {
 		log.Printf("yamlFile.Get err   #%v ", err)
 	}
+
 	err = yaml.Unmarshal(yamlFile, c)
 	if err != nil {
 		log.Fatalf("Unmarshal: %v", err)
@@ -38,8 +38,15 @@ func (c *Conf) GetConf() *Conf {
 }
 
 func (c *Conf) BuildApi() {
+	cfg, err := config.LoadDefaultConfig(context.TODO())
+	if err != nil {
+		log.Println("Cannot gain default creds")
+		return
+	}
+	client := s3.NewFromConfig(cfg)
+
 	var dbConnection = c.CreateDatabaseConnection()
-	var baseHandler = api.NewBaseHandler(dbConnection, CreateSession(c.Aws))
+	var baseHandler = api.NewBaseHandler(dbConnection, client, c.Aws.BucketName)
 	router := gin.Default()
 	router.Use(requestIdMiddleware())
 
@@ -50,6 +57,7 @@ func (c *Conf) BuildApi() {
 	router.GET(routes.GET_PIN_MESSAGE, baseHandler.GetPinnedMessaged)
 	router.GET(routes.GET_MESSAGE_THREAD, baseHandler.FetchMessageThread)
 	router.GET(routes.GET_USRS_LIKE_MESSAGE, baseHandler.GetUserUpvotes)
+	router.GET(routes.UPDATE_USER, baseHandler.GetUser)
 
 	router.POST(routes.CREATE_EVENT, baseHandler.CreateEvent)
 	router.POST(routes.PIN_MESSAGE, baseHandler.PinMessage)
@@ -97,21 +105,21 @@ func DbClosedError() error {
 	return fmt.Errorf("Database connection closed")
 }
 
-func CreateSession(awsConfig AwsConfig) *session.Session {
-	session := session.Must(session.NewSession(
-		&aws.Config{
-			Region: aws.String(awsConfig.Region),
-			Credentials: credentials.NewStaticCredentials(
-				awsConfig.AwsAccessKeyId,
-				awsConfig.AwsAccessKeySecret,
-				"",
-			),
-		},
-	))
-	return session
-}
+// func CreateSession(awsConfig AwsConfig) *session.Session {
+// 	session := session.Must(session.NewSession(
+// 		&aws.Config{
+// 			Region: aws.String(awsConfig.Region),
+// 			Credentials: credentials.NewStaticCredentials(
+// 				awsConfig.AwsAccessKeyId,
+// 				awsConfig.AwsAccessKeySecret,
+// 				"",
+// 			),
+// 		},
+// 	))
+// 	return session
+// }
 
-func CreateS3Session(session *session.Session) *s3.S3 {
-	s3Session := s3.New(session)
-	return s3Session
-}
+// func CreateS3Session(session *session.Session) *s3.S3 {
+// 	s3Session := s3.New(session)
+// 	return s3Session
+// }

@@ -29,20 +29,18 @@ func MapUserRows(rows *sql.Rows) []structures.User {
 	return users
 }
 
-func UpdateUserProfile(user structures.User, updatedImages [3]string, conn *sql.DB) (responses.UserListResponse, error) {
-	var resp responses.UserListResponse
-	for i, el := range updatedImages {
-		if el != "" {
-			switch i {
-			case 0:
-				user.ImgOne = el
-			case 1:
-				user.ImgTwo = el
-			case 3:
-				user.ImgThree = el
-			}
-		}
+func mapUserRow(rows *sql.Row) structures.User {
+	var usr structures.User
+	if err := rows.Scan(&usr.Id, &usr.Username, &usr.Description, &usr.Created, &usr.Ig, &usr.Twitter, &usr.TikTok, &usr.AvatarUrl,
+		&usr.ImgOne, &usr.ImgTwo, &usr.ImgThree); err != nil {
+		log.Println("Issue mapping DB row for user")
 	}
+	return usr
+}
+
+func UpdateUserProfile(user structures.User, conn *sql.DB) (responses.UserListResponse, error) {
+	var resp responses.UserListResponse
+
 	stmt, err := conn.Prepare(queries.UPDATE_USER)
 	defer stmt.Close()
 	if err != nil {
@@ -56,8 +54,8 @@ func UpdateUserProfile(user structures.User, updatedImages [3]string, conn *sql.
 		return resp, err
 	}
 	resp.Data = append(resp.Data, user)
-	resp.Info.Count = 1
-	resp.Info.Total = 1
+	resp.Info.Count = len(resp.Data)
+	resp.Info.Total = len(resp.Data)
 	resp.Info.Next = false
 	resp.Info.Page = 0
 	return resp, nil
@@ -92,6 +90,26 @@ func GetEventMembers(eventId string, page int, conn *sql.DB) (responses.UserList
 		Next:  (page*constants.LIMIT < total && len(users) != total),
 	}
 	return resp, nil
+}
+
+func GetUser(userId string, conn *sql.DB) (responses.UserListResponse, error) {
+	var resp responses.UserListResponse
+	uId, err := uuidtransform.StringToUuidTransform(userId)
+	if err != nil {
+		log.Println(err)
+		return resp, err
+	}
+	stmt, err := conn.Prepare(queries.GET_USER)
+	if err != nil {
+		return resp, err
+	}
+	defer stmt.Close()
+	user := mapUserRow(stmt.QueryRow(&uId))
+	resp.Data = append(resp.Data, user)
+	resp.Info = structures.Info{Total: len(resp.Data), Count: len(resp.Data), Next: false, Page: 0}
+
+	return resp, nil
+
 }
 
 func GetEventUserIsMember(userId string, page int, conn *sql.DB) (responses.EventListResponse, error) {
