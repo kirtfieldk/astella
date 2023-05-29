@@ -15,5 +15,6 @@ const LIKE_MESSAGE_IN_EVENT string = "/api/v1/message/event/upvote/:eventId/:use
 const UNLIKE_MESSAGE_IN_EVENT string = "/api/v1/message/event/downvote/:eventId/:userId/:messageId"
 const GET_EVENTS_MEMBER_OF string = `/api/v1/user/event/member/:userId`
 const GET_EVENTS_MEMBERS string = `/api/v1/member/user/event/:eventId`
-const UPDATE_USER string = `/api/v1/user/:userId`
+const UPDATE_USER string = `/api/v1/update/user/:userId`
+const GET_USER string = `/api/v1/user/:userId`
 const GET_USRS_LIKE_MESSAGE string = "/api/v1/message/event/whoupvote/:eventId/:userId/:messageId"

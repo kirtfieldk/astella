@@ -6,9 +6,11 @@ import (
 	"fmt"
 	"io/ioutil"
 	"log"
+	"time"
 
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
+	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 	"github.com/kirtfieldk/astella/src/api"
 	"github.com/kirtfieldk/astella/src/constants/routes"
@@ -48,7 +50,17 @@ func (c *Conf) BuildApi() {
 	var dbConnection = c.CreateDatabaseConnection()
 	var baseHandler = api.NewBaseHandler(dbConnection, client, c.Aws.BucketName)
 	router := gin.Default()
-	router.Use(requestIdMiddleware())
+	router.Use(cors.New(cors.Config{
+		AllowOrigins:     []string{"*"},
+		AllowMethods:     []string{"PUT", "PATCH", "GET", "POST"},
+		AllowHeaders:     []string{"Origin"},
+		ExposeHeaders:    []string{"Content-Length"},
+		AllowCredentials: true,
+		AllowOriginFunc: func(origin string) bool {
+			return origin == "https://github.com"
+		},
+		MaxAge: 12 * time.Hour,
+	}))
 
 	router.GET(routes.GET_EVENT_BY_ID, baseHandler.GetEvent)
 	router.GET(routes.GET_EVENTS_MEMBER_OF, baseHandler.GeteventsMemberOf)
@@ -57,7 +69,7 @@ func (c *Conf) BuildApi() {
 	router.GET(routes.GET_PIN_MESSAGE, baseHandler.GetPinnedMessaged)
 	router.GET(routes.GET_MESSAGE_THREAD, baseHandler.FetchMessageThread)
 	router.GET(routes.GET_USRS_LIKE_MESSAGE, baseHandler.GetUserUpvotes)
-	router.GET(routes.UPDATE_USER, baseHandler.GetUser)
+	router.GET(routes.GET_USER, baseHandler.GetUser)
 
 	router.POST(routes.CREATE_EVENT, baseHandler.CreateEvent)
 	router.POST(routes.PIN_MESSAGE, baseHandler.PinMessage)
@@ -105,21 +117,19 @@ func DbClosedError() error {
 	return fmt.Errorf("Database connection closed")
 }
 
-// func CreateSession(awsConfig AwsConfig) *session.Session {
-// 	session := session.Must(session.NewSession(
-// 		&aws.Config{
-// 			Region: aws.String(awsConfig.Region),
-// 			Credentials: credentials.NewStaticCredentials(
-// 				awsConfig.AwsAccessKeyId,
-// 				awsConfig.AwsAccessKeySecret,
-// 				"",
-// 			),
-// 		},
-// 	))
-// 	return session
-// }
+func CORSMiddleware() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		log.Println("CORES")
+		c.Writer.Header().Set("Access-Control-Allow-Origin", "*")
+		c.Writer.Header().Set("Access-Control-Allow-Credentials", "true")
+		c.Writer.Header().Set("Access-Control-Allow-Headers", "Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization, accept, origin, Cache-Control, X-Requested-With")
+		c.Writer.Header().Set("Access-Control-Allow-Methods", "POST, OPTIONS, GET, PUT")
 
-// func CreateS3Session(session *session.Session) *s3.S3 {
-// 	s3Session := s3.New(session)
-// 	return s3Session
-// }
+		if c.Request.Method == "OPTIONS" {
+			c.AbortWithStatus(204)
+			return
+		}
+
+		c.Next()
+	}
+}

@@ -6,7 +6,7 @@ import (
 	"os"
 
 	"github.com/gin-gonic/gin"
-	"github.com/kirtfieldk/astella/src/api/responses"
+	"github.com/google/uuid"
 	"github.com/kirtfieldk/astella/src/constants"
 	s3service "github.com/kirtfieldk/astella/src/services/aws/S3Service"
 	userservice "github.com/kirtfieldk/astella/src/services/userService"
@@ -40,7 +40,8 @@ func (h *BaseHandler) GeteventsMembers(c *gin.Context) {
 
 func (h *BaseHandler) UpdateUser(c *gin.Context) {
 	var user structures.User
-	fileNames := getFiles(c, h)
+	var username = c.Request.FormValue("username")
+	fileNames := getFiles(c, h, username)
 	user = structures.User{
 		Id:          c.Request.FormValue("id"),
 		Twitter:     c.Request.FormValue("twitter"),
@@ -50,8 +51,9 @@ func (h *BaseHandler) UpdateUser(c *gin.Context) {
 		ImgOne:      fileNames[0],
 		ImgTwo:      fileNames[1],
 		ImgThree:    fileNames[2],
-		Username:    c.Request.FormValue("username"),
+		Username:    username,
 	}
+	log.Println(user)
 	resp, err := userservice.UpdateUserProfile(user, h.DB)
 	if err != nil {
 		c.IndentedJSON(http.StatusBadRequest, gin.H{constants.MESSAGE: err.Error()})
@@ -60,28 +62,28 @@ func (h *BaseHandler) UpdateUser(c *gin.Context) {
 	c.IndentedJSON(http.StatusAccepted, resp)
 }
 
-func getFiles(c *gin.Context, h *BaseHandler) [3]string {
+func getFiles(c *gin.Context, h *BaseHandler, username string) [3]string {
 	var resp [3]string
-	var fileParams = [3]string{"img_one", "img_two", "img_three"}
+	var fileParams = [3]string{"img_one.png", "img_two.png", "img_three.png"}
 	// c.Request.ParseMultipartForm(32 << 20)
 
 	for i, el := range fileParams {
 		fileHeader, err := c.FormFile(el)
 
 		if err != nil {
+			log.Println("error")
 			log.Println(err)
 		} else {
-			log.Println(fileHeader.Filename)
-			c.SaveUploadedFile(fileHeader, "tmp/"+fileHeader.Filename)
+			var fileName = username + "_" + uuid.New().String()
+			log.Printf("Created File with name %v\n", fileName)
+			c.SaveUploadedFile(fileHeader, "tmp/"+fileName)
 
-			fx, err := os.Open("tmp/" + fileHeader.Filename)
-			if err != nil {
-				log.Println("FUCK ")
-			}
+			fx, _ := os.Open("tmp/" + fileName)
+
 			defer fx.Close()
 			defer os.Remove(fx.Name())
-			s3service.UploadObject("astellaapplicationmessages", fx, fileHeader.Filename, h.S3Session)
-			resp[i] = fileHeader.Filename
+			s3service.UploadObject("astellaapplicationmessages", fx, fileName, h.S3Session)
+			resp[i] = fileName
 
 		}
 
@@ -98,24 +100,5 @@ func (h *BaseHandler) GetUser(c *gin.Context) {
 		c.IndentedJSON(http.StatusBadRequest, gin.H{constants.MESSAGE: "No user"})
 		return
 	}
-	h.getPresignedUrls(userResponse)
 	c.IndentedJSON(http.StatusAccepted, userResponse)
-
-}
-
-func (h *BaseHandler) getPresignedUrls(usr responses.UserListResponse) {
-	var result []string
-	if len(usr.Data) > 0 {
-		images := []string{usr.Data[0].ImgOne, usr.Data[0].ImgTwo, usr.Data[0].ImgThree}
-		for _, el := range images {
-			log.Println(el)
-			url, err := s3service.GeneratePresignedUrl(h.AwsBucket, el, h.S3Session)
-			if err != nil {
-				log.Println(err)
-				continue
-			}
-			result = append(result, url)
-		}
-		usr.Data[0].PresignedUrl = result
-	}
 }
