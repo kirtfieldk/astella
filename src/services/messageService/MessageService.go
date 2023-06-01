@@ -24,9 +24,7 @@ func PostMessage(msg structures.MessageRequestBody, conn *sql.DB) (bool, error) 
 		return false, err
 	}
 	if isRequestInArea(eventId, msg.Latitude, msg.Longitude, conn) && isUserInEvent(userId, eventId, conn) {
-		log.Println("HERE IN EVENT")
-
-		return insertMessageIntoDB(msg, conn), nil
+		return insertMessageIntoDB(msg, userId, eventId, conn), nil
 	}
 	log.Printf("User %v is not in event %v\n", msg.UserId, msg.EventId)
 	return false, nil
@@ -312,7 +310,7 @@ func mapRowsToMessages(rows *sql.Rows) []structures.Message {
 		if err := rows.Scan(
 			&msg.Id, &msg.Content, &msg.Created, &msg.EventId, &parentId, &msg.Upvotes, &msg.Pinned, &msg.Latitude, &msg.Longitude,
 			&usr.Id, &usr.Username, &usr.Description, &usr.Created, &usr.Ig, &usr.Twitter, &usr.TikTok, &usr.AvatarUrl,
-			&usr.ImgOne, &usr.ImgTwo, &usr.ImgThree); err != nil {
+			&usr.ImgOne, &usr.ImgTwo, &usr.ImgThree, &usr.Snapchat, &usr.Youtube, &msg.Replies); err != nil {
 			log.Println(err)
 			log.Println("Issue mapping DB row")
 		}
@@ -335,6 +333,14 @@ func isRequestInArea(id uuid.UUID, lat float32, long float32, conn *sql.DB) bool
 	return locationservice.CheckPointInArea(lat, long, topLeftPt, topRightPt, bottomLeftPt, bottomRightPt)
 }
 
+//9. Instead goea from router to platform
+//Check how longtoken is valid in cache
+// Enrich and capture - Discuss capture in here
+//Customer Access -> Deployed in CloudFront
+//Add more text for UI Data Flow ->
+//When a message hits summarists, How does it make its way through Apollo applications
+//Add ALB in in UI Data Flow
+
 func isUserInEvent(userId uuid.UUID, eventId uuid.UUID, conn *sql.DB) bool {
 	var id uuid.UUID
 	stmt, err := conn.Prepare(queries.FIND_IF_USER_IN_EVENT)
@@ -350,17 +356,16 @@ func isUserInEvent(userId uuid.UUID, eventId uuid.UUID, conn *sql.DB) bool {
 	return true
 }
 
-func insertMessageIntoDB(msg structures.MessageRequestBody, conn *sql.DB) bool {
+func insertMessageIntoDB(msg structures.MessageRequestBody, userId uuid.UUID, eventId uuid.UUID, conn *sql.DB) bool {
 	if msg.ParentId != "" {
-		log.Println(msg.ParentId)
-		_, err := conn.Exec(queries.INSERT_MESSAGE_WITH_PARENT_ID, &msg.Content, &msg.UserId, time.Now().UTC(), &msg.EventId, &msg.ParentId, &msg.Upvotes, &msg.Pinned,
+		_, err := conn.Exec(queries.INSERT_MESSAGE_WITH_PARENT_ID, &msg.Content, userId, time.Now().UTC(), eventId, &msg.ParentId, &msg.Upvotes, &msg.Pinned,
 			&msg.Latitude, &msg.Longitude)
 		if err != nil {
 			log.Println(err)
 			return false
 		}
 	} else {
-		_, err := conn.Exec(queries.INSERT_MESSAGE_WITHOUT_PARENT_ID, &msg.Content, &msg.UserId, time.Now().UTC(), &msg.EventId, &msg.Upvotes, &msg.Pinned,
+		_, err := conn.Exec(queries.INSERT_MESSAGE_WITHOUT_PARENT_ID, &msg.Content, userId, time.Now().UTC(), eventId, &msg.Upvotes, &msg.Pinned,
 			&msg.Latitude, &msg.Longitude)
 		if err != nil {
 			log.Println(err)
@@ -377,12 +382,10 @@ func getMessages(eventId uuid.UUID, page int, conn *sql.DB) (responses.MessageLi
 	rows, err := conn.Query(queries.GET_MESSAGES_IN_EVENT, eventId, util.CalcQueryStart(page), constants.LIMIT)
 	defer rows.Close()
 	if err != nil {
-		log.Println(err)
 		return response, err
 	}
 	messages = mapRowsToMessages(rows)
 	if err = conn.QueryRow(queries.GET_MESSAGES_IN_EVENT_COUNT, eventId).Scan(&total); err != nil {
-		log.Println(err)
 		return response, err
 	}
 	response.Data = messages
@@ -417,7 +420,7 @@ func upVoteMessage(userId uuid.UUID, messageId uuid.UUID, conn *sql.DB) (structu
 	}
 	if err = updateMsgStmt.QueryRow(&messageId).Scan(&msg.Id, &msg.Content, &msg.Created, &msg.EventId, &parentId, &msg.Upvotes, &msg.Pinned, &msg.Latitude, &msg.Longitude,
 		&usr.Id, &usr.Username, &usr.Description, &usr.Created, &usr.Ig, &usr.Twitter, &usr.TikTok, &usr.AvatarUrl,
-		&usr.ImgOne, &usr.ImgTwo, &usr.ImgThree); err != nil {
+		&usr.ImgOne, &usr.ImgTwo, &usr.ImgThree, &usr.Snapchat, &usr.Youtube); err != nil {
 		log.Println(err)
 		return msg, fmt.Errorf(constants.UNABLE_TO_UPVOTE_FOR_USER, userId)
 	}
@@ -453,7 +456,7 @@ func downVoteMessage(userId uuid.UUID, messageId uuid.UUID, conn *sql.DB) (struc
 	}
 	if err = updateMsgStmt.QueryRow(&messageId).Scan(&msg.Id, &msg.Content, &msg.Created, &msg.EventId, &parentId, &msg.Upvotes, &msg.Pinned, &msg.Latitude, &msg.Longitude,
 		&usr.Id, &usr.Username, &usr.Description, &usr.Created, &usr.Ig, &usr.Twitter, &usr.TikTok, &usr.AvatarUrl,
-		&usr.ImgOne, &usr.ImgTwo, &usr.ImgThree); err != nil {
+		&usr.ImgOne, &usr.ImgTwo, &usr.ImgThree, &usr.Snapchat, &usr.Youtube); err != nil {
 		log.Println(err)
 		return msg, fmt.Errorf(constants.UNABLE_TO_UPVOTE_FOR_USER, userId)
 	}

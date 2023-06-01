@@ -9,6 +9,6 @@ type Event struct {
 	Description  string       `json:"description"`
 	Code         string       `json:"code"`
 	LocationInfo LocationInfo `json:"location_info"`
-	Expired      bool         `json:"expired"`
 	EndTime      string       `json:"end_time"`
+	UserId       string       `json:"user_id"`
 }

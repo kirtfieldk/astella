@@ -21,7 +21,7 @@ func MapUserRows(rows *sql.Rows) []structures.User {
 	for rows.Next() {
 		var usr structures.User
 		if err := rows.Scan(&usr.Id, &usr.Username, &usr.Description, &usr.Created, &usr.Ig, &usr.Twitter, &usr.TikTok, &usr.AvatarUrl,
-			&usr.ImgOne, &usr.ImgTwo, &usr.ImgThree); err != nil {
+			&usr.ImgOne, &usr.ImgTwo, &usr.ImgThree, &usr.Snapchat, &usr.Youtube); err != nil {
 			log.Println("Issue mapping DB row for user")
 		}
 		users = append(users, usr)
@@ -32,7 +32,7 @@ func MapUserRows(rows *sql.Rows) []structures.User {
 func mapUserRow(rows *sql.Row) structures.User {
 	var usr structures.User
 	if err := rows.Scan(&usr.Id, &usr.Username, &usr.Description, &usr.Created, &usr.Ig, &usr.Twitter, &usr.TikTok, &usr.AvatarUrl,
-		&usr.ImgOne, &usr.ImgTwo, &usr.ImgThree); err != nil {
+		&usr.ImgOne, &usr.ImgTwo, &usr.ImgThree, &usr.Snapchat, &usr.Youtube); err != nil {
 		log.Println("Issue mapping DB row for user")
 	}
 	return usr

@@ -13,6 +13,7 @@ type Message struct {
 	PinnedByUser  bool    `json:"pinned_by_user"`
 	Latitude      float32 `json:"latitude"`
 	Longitude     float32 `json:"longitude"`
+	Replies       int     `json:"replies"`
 }
 
 type MessageRequestBody struct {

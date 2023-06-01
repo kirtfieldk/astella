@@ -33,6 +33,14 @@ func CreateEvent(eventInfo structures.Event, conn *sql.DB) (responses.EventListR
 	if err != nil {
 		return resp, err
 	}
+	userId, eventIdUuid, err := uuidtransform.ParseTwoIds(eventInfo.UserId, eventId)
+	if err != nil {
+		log.Printf("Issue parsing ids: %v AND %v\n", userId, eventIdUuid)
+	}
+	_, err = addUserToEventTransaction(userId, eventIdUuid, tx)
+	if err != nil {
+		return resp, err
+	}
 	err = tx.Commit()
 	if err != nil {
 		return resp, fmt.Errorf("Error with event transaction %v", err)
@@ -126,9 +134,7 @@ func AddUserToEvent(code string, userId string, eventId string, cords structures
 		structures.Point{Latitude: event.LocationInfo.TopRightLat, Longitude: event.LocationInfo.TopRightLon},
 		structures.Point{Latitude: event.LocationInfo.BottomLeftLat, Longitude: event.LocationInfo.BottomLeftLon},
 		structures.Point{Latitude: event.LocationInfo.BottomRightLat, Longitude: event.LocationInfo.BottomRightLon}) {
-		log.Println("HERE")
 		if event.IsPublic || (!event.IsPublic && string(decodedCode) == code) {
-			log.Println("HERE")
 			return addUserToEvent(uId, eId, conn)
 		}
 	}
@@ -154,7 +160,7 @@ func mapSingleRowQuery(row *sql.Row) (structures.Event, error) {
 	if err := row.Scan(&event.Id, &event.Name, &event.Created, &event.Description, &event.IsPublic, &event.Code,
 		&location.Id, &location.TopLeftLat, &location.TopLeftLon, &location.TopRightLat, &location.TopRightLon,
 		&location.BottomRightLat, &location.BottomRightLon, &location.BottomLeftLat, &location.BottomLeftLon, &location.City,
-		&event.Expired, &event.EndTime); err != nil {
+		&event.UserId, &event.EndTime); err != nil {
 		return event, err
 	}
 	event.LocationInfo = location
@@ -169,7 +175,7 @@ func MapMultiLineRows(rows *sql.Rows) ([]structures.Event, error) {
 		if err := rows.Scan(&event.Id, &event.Name, &event.Created, &event.Description, &event.IsPublic, &event.Code,
 			&location.Id, &location.TopLeftLat, &location.TopLeftLon, &location.TopRightLat, &location.TopRightLon,
 			&location.BottomRightLat, &location.BottomRightLon, &location.BottomLeftLat, &location.BottomLeftLon, &location.City,
-			&event.Expired, &event.EndTime); err != nil {
+			&event.UserId, &event.EndTime); err != nil {
 			//continue
 			log.Println(err)
 		}
@@ -193,7 +199,16 @@ func getErrorMessage(err error, id string) error {
 }
 
 func addUserToEvent(userId uuid.UUID, eventId uuid.UUID, conn *sql.DB) (bool, error) {
-	_, err := conn.Exec("INSERT INTO members (user_id, event_id, created) values ($1, $2, $3)", userId, eventId, time.Now().UTC())
+	_, err := conn.Exec(queries.ADD_USER_TO_EVENT, userId, eventId, time.Now().UTC())
+	if err != nil {
+		log.Println(err)
+		return false, err
+	}
+	return true, nil
+}
+
+func addUserToEventTransaction(userId uuid.UUID, eventId uuid.UUID, conn *sql.Tx) (bool, error) {
+	_, err := conn.Exec(queries.ADD_USER_TO_EVENT, userId, eventId, time.Now().UTC())
 	if err != nil {
 		log.Println(err)
 		return false, err
@@ -212,7 +227,7 @@ func insertEventIntoDb(eventInfo structures.Event, lId string, conn *sql.Tx) (st
 	}
 	err = stmt.QueryRow(&eventInfo.Name, time.Now().UTC(), &eventInfo.Description,
 		&eventInfo.IsPublic, &encodedCode, &lId, &eventInfo.Duration,
-		time.Now().UTC().Add(time.Hour*time.Duration(eventInfo.Duration)), false).Scan(&id)
+		time.Now().UTC().Add(time.Hour*time.Duration(eventInfo.Duration)), &eventInfo.UserId).Scan(&id)
 	if err != nil {
 		return id, fmt.Errorf("Unable to create event %v", err)
 	}

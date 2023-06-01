@@ -1,9 +1,11 @@
 package api
 
 import (
+	"log"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
+	"github.com/kirtfieldk/astella/src/api/responses"
 	"github.com/kirtfieldk/astella/src/constants"
 	messageservice "github.com/kirtfieldk/astella/src/services/messageService"
 	"github.com/kirtfieldk/astella/src/structures"
@@ -12,6 +14,7 @@ import (
 
 func (h *BaseHandler) PostMessageToEvent(c *gin.Context) {
 	var msg structures.MessageRequestBody
+	var messagesResp responses.MessageListResponse
 	if err := c.BindJSON(&msg); err != nil {
 		c.IndentedJSON(http.StatusNotFound, gin.H{constants.MESSAGE: constants.PAYLOAD_IS_NOT_MSG})
 		return
@@ -21,10 +24,19 @@ func (h *BaseHandler) PostMessageToEvent(c *gin.Context) {
 		c.IndentedJSON(http.StatusBadRequest, gin.H{constants.MESSAGE: err.Error()})
 		return
 	}
-	messagesResp, err := messageservice.GetMessagesInEvent(msg.EventId, msg.UserId, 0, h.DB)
-	if err != nil {
-		c.IndentedJSON(http.StatusBadRequest, gin.H{constants.MESSAGE: err.Error()})
-		return
+	log.Println(&msg.ParentId != nil)
+	if &msg.ParentId != nil {
+		messagesResp, err = messageservice.GetMessagesInEvent(msg.EventId, msg.UserId, 0, h.DB)
+		if err != nil {
+			c.IndentedJSON(http.StatusBadRequest, gin.H{constants.MESSAGE: err.Error()})
+			return
+		}
+	} else {
+		messagesResp, err = messageservice.GetMessageThread(msg.ParentId, msg.UserId, msg.EventId, 0, h.DB)
+		if err != nil {
+			c.IndentedJSON(http.StatusBadRequest, gin.H{constants.MESSAGE: err.Error()})
+			return
+		}
 	}
 	messagesResp.Success = success
 	c.IndentedJSON(http.StatusAccepted, messagesResp)

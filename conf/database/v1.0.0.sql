@@ -15,25 +15,6 @@ CREATE TABLE IF NOT EXISTS locationInfo(
     city varchar(100) NOT NULL DEFAULT ''
 );
 
- CREATE TABLE IF NOT EXISTS events(
-    id uuid PRIMARY KEY DEFAULT uuid_generate_v4 (),
-    event_name varchar(80) NOT NULL,
-    created TIMESTAMP NOT NULL,
-    description varchar(400) NOT NULL DEFAULT '',
-    public BOOLEAN DEFAULT FALSE,
-    code varchar(20) NOT NULL DEFAULT '',
-    expired BOOLEAN DEFAULT FALSE,
-    end_time TIMESTAMP NOT NULL, 
-    duration float,
-    location_id uuid,
-    CONSTRAINT fk_location
-      FOREIGN KEY(location_id) 
-	  REFERENCES locationInfo(id)
-    
-);
-
-
-
 CREATE TABLE IF NOT EXISTS users (
     id uuid PRIMARY KEY DEFAULT uuid_generate_v4 (),
     created TIMESTAMP NOT NULL, 
@@ -42,11 +23,34 @@ CREATE TABLE IF NOT EXISTS users (
     ig varchar(120) NOT NULL DEFAULT '',
     twitter varchar(120) NOT NULL DEFAULT '',
     tiktok varchar(120) NOT NULL DEFAULT '',
+    youtube varchar(120) NOT NULL DEFAULT '',
+    snapchat varchar(120) NOT NULL DEFAULT '',
     avatar_url varchar(120) NOT NULL DEFAULT '',
     img_one varchar(120) NOT NULL DEFAULT '',
     img_two varchar(120) NOT NULL DEFAULT '',
     img_three varchar(120) NOT NULL DEFAULT ''
 );
+
+ CREATE TABLE IF NOT EXISTS events(
+    id uuid PRIMARY KEY DEFAULT uuid_generate_v4 (),
+    event_name varchar(80) NOT NULL,
+    created TIMESTAMP NOT NULL,
+    description varchar(400) NOT NULL DEFAULT '',
+    public BOOLEAN DEFAULT FALSE,
+    code varchar(20) NOT NULL DEFAULT '',
+    end_time TIMESTAMP NOT NULL, 
+    duration float,
+    location_id uuid,
+    user_id UUID NOT NULL,
+    CONSTRAINT fk_location
+      FOREIGN KEY(location_id) 
+	  REFERENCES locationInfo(id),
+    CONSTRAINT fk_user
+      FOREIGN KEY(user_id) 
+	  REFERENCES users(id)
+    
+);
+
 
 CREATE TABLE IF NOT EXISTS admins(
     id uuid PRIMARY KEY DEFAULT uuid_generate_v4 (),
