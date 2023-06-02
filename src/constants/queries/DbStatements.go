@@ -58,7 +58,7 @@ const GET_LOCATION_FOR_EVENT string = `SELECT
 	FROM locationInfo LEFT JOIN events ON 
 	events.location_id = locationInfo.id WHERE events.id = $1`
 
-const FIND_IF_USER_IN_EVENT string = `SELECT id FROM members WHERE user_id = $1 AND event_id = $2`
+const FIND_IF_USER_IN_EVENT string = `SELECT id FROM public.members WHERE user_id = $1 AND event_id = $2`
 const INSERT_MESSAGE_WITH_PARENT_ID string = `Insert INTO messages (content,user_id,created,event_id,parent_id,upvotes, pinned,latitude,longitude) VALUES
 		($1, $2, $3, $4, $5, $6, $7, $8, $9);`
 const INSERT_MESSAGE_WITHOUT_PARENT_ID string = `Insert INTO messages (content,user_id,created,event_id,upvotes, pinned,latitude,longitude) VALUES

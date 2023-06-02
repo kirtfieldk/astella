@@ -3,7 +3,7 @@ db:
    user: "keith"
    db_name: "cinder"
    password: "vrvervfr"
-   host: "localhost"
+   host: "database"
    port: "5432"
    sslmode: "disable"
 app:

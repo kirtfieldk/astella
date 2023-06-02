@@ -346,7 +346,9 @@ func isUserInEvent(userId uuid.UUID, eventId uuid.UUID, conn *sql.DB) bool {
 	stmt, err := conn.Prepare(queries.FIND_IF_USER_IN_EVENT)
 	defer stmt.Close()
 	if err != nil {
+		log.Println(err)
 		log.Println("Touble preparing statement for isUserInEvent")
+		return false
 	}
 	err = stmt.QueryRow(userId, eventId).Scan(&id)
 	if err == sql.ErrNoRows {

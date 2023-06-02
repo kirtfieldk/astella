@@ -23,7 +23,7 @@ type Conf struct {
 	Aws      AwsConfig `yaml:"aws"`
 	Database DbConfig  `yaml:"database"`
 	BaseUrl  string    `yaml:"base_url"`
-	Port     int       `yaml:"port"`
+	Port     string    `yaml:"port"`
 }
 
 func (c *Conf) GetConf() *Conf {
@@ -83,7 +83,7 @@ func (c *Conf) BuildApi() {
 
 	router.PUT(routes.UPDATE_USER, baseHandler.UpdateUser)
 
-	router.Run(c.BaseUrl)
+	router.Run(c.Port)
 }
 
 func requestIdMiddleware() gin.HandlerFunc {
